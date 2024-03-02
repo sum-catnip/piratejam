@@ -17,3 +17,4 @@ opt-level = 3
 
 [dependencies]
 bevy = "0.13"
+bevy_fast_tilemap = "0.7.0"
