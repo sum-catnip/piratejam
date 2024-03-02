@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use bevy::prelude::*;
-use bevy_fast_tilemap::{FastTileMapPlugin, Map, MapBundleManaged, MapIndexer, AXONOMETRIC};
+use bevy_fast_tilemap::{FastTileMapPlugin, MapBundleManaged, MapIndexer, AXONOMETRIC, Map};
 use bevy_inspector_egui::{prelude::*, quick::ResourceInspectorPlugin};
 
 pub struct WorldGenPlugin;
@@ -16,7 +16,7 @@ impl Plugin for WorldGenPlugin {
             .register_type::<MapgridDebug>()
             .add_plugins(ResourceInspectorPlugin::<WorldgenConfig>::default())
             .add_plugins(ResourceInspectorPlugin::<MapgridDebug>::default())
-            .add_systems(Update, spawn_chunks)
+            .add_systems(Update, (spawn_chunks, despawn_chunks))
             .add_systems(Update, debug_view);
     }
 }
@@ -27,6 +27,9 @@ struct Tileset {
     water: u32,
     sand: u32,
 }
+
+#[derive(Component)]
+struct Chunk;
 
 #[derive(Reflect, Resource, Default, InspectorOptions)]
 #[reflect(Resource, InspectorOptions)]
@@ -118,6 +121,7 @@ fn spawn_chunks(
                 chunks.0.insert(
                     vec,
                     cmd.spawn(MapBundleManaged::new(chunk, mat.as_mut()))
+                        .insert(Chunk)
                         .insert(Transform {
                             translation: Vec3::new(pos.x, pos.y, 0.),
                             ..default()
@@ -129,7 +133,33 @@ fn spawn_chunks(
     }
 }
 
-fn despawn_chunks() {}
+fn manhatten_dist(a: IVec2, b: IVec2) -> u32 {
+    let dist = (a - b).abs();
+    (dist.x + dist.y).try_into().expect("negative distance?")
+}
+
+fn despawn_chunks(
+    mut cmd: Commands,
+    mut chunks: ResMut<Chunks>,
+    maps: Query<&Transform, With<Chunk>>,
+    cfg: Res<WorldgenConfig>,
+    cam: Query<&Transform, With<Camera>>,
+) {
+    let cam_transform = cam.single();
+    let render_dist = cfg.render_dist;
+    for chunk_transform in maps.iter() {
+        let chunkpos_cam = world2grid_chunk(cam_transform.translation.xy());
+        let chunkpos_chunk = world2grid_chunk(chunk_transform.translation.xy());
+        let dist = manhatten_dist(chunkpos_cam, chunkpos_chunk);
+        if dist > render_dist * 2 {
+            let e = chunks
+                .0
+                .remove(&chunkpos_chunk)
+                .expect("tried to despawn nonexistant chunk");
+            cmd.entity(e).despawn_recursive();
+        }
+    }
+}
 
 fn init_chunk(m: &mut MapIndexer) {
     for y in 0..m.size().y {
@@ -137,4 +167,4 @@ fn init_chunk(m: &mut MapIndexer) {
             m.set(x, y, (((x + y) % 2) + 1) as u32);
         }
     }
-} // reset_map
+}

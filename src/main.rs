@@ -3,12 +3,10 @@
 // workflow treats them as errors, so this allows them throughout the project.
 // Feel free to delete this line.
 #![allow(clippy::too_many_arguments, clippy::type_complexity)]
-
 mod worldgen;
 use worldgen::WorldGenPlugin;
 
 use bevy::prelude::*;
-use bevy_inspector_egui::prelude::*;
 
 fn main() {
     App::new()
