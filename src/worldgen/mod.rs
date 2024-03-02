@@ -114,7 +114,7 @@ fn spawn_chunks(
                     .with_projection(AXONOMETRIC)
                     .build_and_initialize(init_chunk);
 
-                let pos = grid2world_chunk(chunkpos);
+                let pos = grid2world_chunk(vec);
                 chunks.0.insert(
                     vec,
                     cmd.spawn(MapBundleManaged::new(chunk, mat.as_mut()))
