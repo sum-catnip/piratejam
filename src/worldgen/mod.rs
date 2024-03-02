@@ -17,8 +17,7 @@ impl Plugin for WorldGenPlugin {
             .add_plugins(ResourceInspectorPlugin::<WorldgenConfig>::default())
             .add_plugins(ResourceInspectorPlugin::<MapgridDebug>::default())
             .add_systems(Update, spawn_chunks)
-            .add_systems(Update, debug_view)
-            ;
+            .add_systems(Update, debug_view);
     }
 }
 
@@ -79,13 +78,18 @@ fn grid2world_chunk(grid: IVec2) -> Vec2 {
     CHUNK_SIZE * (AXONOMETRIC_PROJECTION * grid.as_vec2())
 }
 
-fn debug_view(window: Query<&Window>, cam: Query<(&Camera, &GlobalTransform)>, mut dbg: ResMut<MapgridDebug>) {
+fn debug_view(
+    window: Query<&Window>,
+    cam: Query<(&Camera, &GlobalTransform)>,
+    mut dbg: ResMut<MapgridDebug>,
+) {
     let window = window.single();
     let (cam, transform) = cam.single();
-    
-    if let Some(worldpos) = window.cursor_position()
-        .and_then(|cursor| cam.viewport_to_world(transform, cursor)
-        .map(|ray| ray.origin.truncate())) {
+
+    if let Some(worldpos) = window.cursor_position().and_then(|cursor| {
+        cam.viewport_to_world(transform, cursor)
+            .map(|ray| ray.origin.truncate())
+    }) {
         dbg.mouse_chunk = world2grid_chunk(worldpos);
     }
 }

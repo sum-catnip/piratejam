@@ -18,10 +18,14 @@ fn main() {
         .run();
 }
 
-fn camera(time: Res<Time>, kb: Res<ButtonInput<KeyCode>>, mut q: Query<(&mut Transform, &mut OrthographicProjection), With<Camera>>) {
+fn camera(
+    time: Res<Time>,
+    kb: Res<ButtonInput<KeyCode>>,
+    mut q: Query<(&mut Transform, &mut OrthographicProjection), With<Camera>>,
+) {
     let (mut transform, mut ortho) = q.single_mut();
     let mut dir = Vec3::ZERO;
-    
+
     if kb.pressed(KeyCode::KeyA) {
         dir -= Vec3::new(1.0, 0.0, 0.0);
     }
