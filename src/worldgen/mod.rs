@@ -23,16 +23,21 @@ impl Plugin for WorldGenPlugin {
     }
 }
 
-#[derive(Resource)]
-struct Tileset {
-    tex: Handle<Image>,
-    water: u32,
-    sand: u32,
+#[repr(u32)]
+pub enum Tile {
+    Border = 0,
+    Water = 1,
+    Sand = 2,
 }
 
 #[derive(Resource)]
-struct TerrainNoise {
-    simplex1: Simplex,
+struct Tileset {
+    tex: Handle<Image>
+}
+
+#[derive(Resource)]
+pub struct TerrainNoise {
+    altitude: Simplex,
 }
 
 #[derive(Component)]
@@ -40,7 +45,7 @@ struct Chunk;
 
 #[derive(Reflect, Resource, Default, InspectorOptions)]
 #[reflect(Resource, InspectorOptions)]
-struct WorldgenConfig {
+pub struct WorldgenConfig {
     render_dist: u32,
     wavelength: f64,
     land_threshhold: f64,
@@ -67,11 +72,7 @@ const INV_AXONOMETRIC_PROJECTION: Mat2 = Mat2::from_cols(Vec2::new(1.0, 1.0), Ve
 
 fn setup(mut cmd: Commands, assets: Res<AssetServer>) {
     let tex = assets.load("iso.png");
-    cmd.insert_resource(Tileset {
-        tex,
-        water: 1,
-        sand: 2,
-    });
+    cmd.insert_resource(Tileset { tex });
 
     cmd.insert_resource(WorldgenConfig {
         render_dist: 1,
@@ -80,7 +81,7 @@ fn setup(mut cmd: Commands, assets: Res<AssetServer>) {
     });
 
     cmd.insert_resource(TerrainNoise {
-        simplex1: Simplex::new(1337),
+        altitude: Simplex::new(1337),
     });
 }
 
@@ -134,7 +135,7 @@ fn spawn_chunks(
                 let chunk = Map::builder(CHUNK_SIZE_TILES, ts.tex.clone(), TILE_SIZE)
                     .with_projection(AXONOMETRIC)
                     .build_and_initialize(|index| {
-                        init_chunk(index, vec, noise.as_ref(), cfg.as_ref(), ts.as_ref())
+                        init_chunk(index, vec, noise.as_ref(), cfg.as_ref())
                     });
 
                 let pos = grid2world_chunk(vec);
@@ -181,27 +182,28 @@ fn despawn_chunks(
     }
 }
 
+pub fn tile_at_pos(pos: IVec2, noise: &TerrainNoise, cfg: &WorldgenConfig) -> Tile {
+    let val = noise
+        .altitude
+        .get([pos.x as f64 / cfg.wavelength, pos.y as f64 / cfg.wavelength]);
+    match val {
+        x if x >= cfg.land_threshhold => Tile::Sand,
+        _ => Tile::Water,
+    }
+}
+
 fn init_chunk(
     m: &mut MapIndexer,
     chunk: IVec2,
     noise: &TerrainNoise,
     cfg: &WorldgenConfig,
-    tiles: &Tileset,
 ) {
     for y in 0..m.size().y {
         for x in 0..m.size().x {
             //m.set(x, y, (((x + y) % 2) + 1) as u32);
             let pos = IVec2::new(x as i32, y as i32);
             let global = chunk * pos;
-            let val = noise.simplex1.get([
-                global.x as f64 / cfg.wavelength,
-                global.y as f64 / cfg.wavelength,
-            ]);
-            let tile = match val {
-                x if x >= cfg.land_threshhold => tiles.sand,
-                _ => tiles.water,
-            };
-            m.set(x, y, tile);
+            m.set(x, y, tile_at_pos(global, noise, cfg) as u32);
         }
     }
 }
