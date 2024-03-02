@@ -614,15 +614,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bevy_github_ci_template"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "bevy-inspector-egui",
- "bevy_fast_tilemap",
-]
-
-[[package]]
 name = "bevy_gizmos"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3023,6 +3014,15 @@ dependencies = [
  "atomic-waker",
  "fastrand",
  "futures-io",
+]
+
+[[package]]
+name = "pirategame"
+version = "0.1.0"
+dependencies = [
+ "bevy",
+ "bevy-inspector-egui",
+ "bevy_fast_tilemap",
 ]
 
 [[package]]
