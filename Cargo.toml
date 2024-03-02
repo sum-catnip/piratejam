@@ -19,3 +19,4 @@ opt-level = 3
 bevy = "0.13"
 bevy-inspector-egui = "0.23.3"
 bevy_fast_tilemap = "0.7.0"
+noise = "0.8.2"

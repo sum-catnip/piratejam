@@ -1,8 +1,10 @@
 use std::collections::HashMap;
 
 use bevy::prelude::*;
-use bevy_fast_tilemap::{FastTileMapPlugin, MapBundleManaged, MapIndexer, AXONOMETRIC, Map};
+use bevy_fast_tilemap::{FastTileMapPlugin, Map, MapBundleManaged, MapIndexer, AXONOMETRIC};
 use bevy_inspector_egui::{prelude::*, quick::ResourceInspectorPlugin};
+
+use noise::{NoiseFn, Simplex};
 
 pub struct WorldGenPlugin;
 impl Plugin for WorldGenPlugin {
@@ -28,6 +30,11 @@ struct Tileset {
     sand: u32,
 }
 
+#[derive(Resource)]
+struct TerrainNoise {
+    simplex1: Simplex,
+}
+
 #[derive(Component)]
 struct Chunk;
 
@@ -35,6 +42,8 @@ struct Chunk;
 #[reflect(Resource, InspectorOptions)]
 struct WorldgenConfig {
     render_dist: u32,
+    wavelength: f64,
+    land_threshhold: f64,
 }
 
 #[derive(Reflect, Resource, Default, InspectorOptions)]
@@ -60,11 +69,19 @@ fn setup(mut cmd: Commands, assets: Res<AssetServer>) {
     let tex = assets.load("iso.png");
     cmd.insert_resource(Tileset {
         tex,
-        water: 0,
-        sand: 1,
+        water: 1,
+        sand: 2,
     });
 
-    cmd.insert_resource(WorldgenConfig { render_dist: 1 });
+    cmd.insert_resource(WorldgenConfig {
+        render_dist: 1,
+        wavelength: 10.5,
+        land_threshhold: 0.2,
+    });
+
+    cmd.insert_resource(TerrainNoise {
+        simplex1: Simplex::new(1337),
+    });
 }
 
 fn world2grid_chunk(world: Vec2) -> IVec2 {
@@ -103,6 +120,7 @@ fn spawn_chunks(
     mut mat: ResMut<Assets<Map>>,
     ts: Res<Tileset>,
     cfg: Res<WorldgenConfig>,
+    noise: Res<TerrainNoise>,
     cam: Query<&Transform, With<Camera>>,
 ) {
     let transform = cam.single();
@@ -115,7 +133,9 @@ fn spawn_chunks(
                 debug!("spawning chunk @ {}, curr: {}", vec, chunkpos);
                 let chunk = Map::builder(CHUNK_SIZE_TILES, ts.tex.clone(), TILE_SIZE)
                     .with_projection(AXONOMETRIC)
-                    .build_and_initialize(init_chunk);
+                    .build_and_initialize(|index| {
+                        init_chunk(index, vec, noise.as_ref(), cfg.as_ref(), ts.as_ref())
+                    });
 
                 let pos = grid2world_chunk(vec);
                 chunks.0.insert(
@@ -161,10 +181,27 @@ fn despawn_chunks(
     }
 }
 
-fn init_chunk(m: &mut MapIndexer) {
+fn init_chunk(
+    m: &mut MapIndexer,
+    chunk: IVec2,
+    noise: &TerrainNoise,
+    cfg: &WorldgenConfig,
+    tiles: &Tileset,
+) {
     for y in 0..m.size().y {
         for x in 0..m.size().x {
-            m.set(x, y, (((x + y) % 2) + 1) as u32);
+            //m.set(x, y, (((x + y) % 2) + 1) as u32);
+            let pos = IVec2::new(x as i32, y as i32);
+            let global = chunk * pos;
+            let val = noise.simplex1.get([
+                global.x as f64 / cfg.wavelength,
+                global.y as f64 / cfg.wavelength,
+            ]);
+            let tile = match val {
+                x if x >= cfg.land_threshhold => tiles.sand,
+                _ => tiles.water,
+            };
+            m.set(x, y, tile);
         }
     }
 }
