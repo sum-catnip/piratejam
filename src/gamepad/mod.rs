@@ -1,6 +1,8 @@
 use bevy::prelude::*;
 use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent};
 
+use crate::player::PlayerShip;
+
 pub struct GamepadPlugin;
 
 impl Plugin for GamepadPlugin {
@@ -34,18 +36,18 @@ fn gamepad_connections(
                     }
                 }
             }
-            // other events are irrelevant
-            _ => {}
+            _ => {}  // Discard anything else
         }
     }
 }
 
 fn gamepad_input(
     axes: Res<Axis<GamepadAxis>>,
-    buttons: Res<Input<GamepadButton>>,
+    buttons: Res<ButtonInput<GamepadButton>>,
     my_gamepad: Option<Res<MyGamepad>>,
-    mut query: Query<&mut Transform, With<PirateShip>>,
+    mut query: Query<&mut PlayerShip>,
 ) {
+    let mut ship = query.single_mut();
     let gamepad = if let Some(gp) = my_gamepad {
         gp.0
     } else {
@@ -63,8 +65,9 @@ fn gamepad_input(
     if let (Some(x), Some(y)) = (axes.get(axis_lx), axes.get(axis_ly)) {
         let left_stick_pos = Vec2::new(x, y);
 
-        if left_stick_pos.length() > 0.9 && left_stick_pos.y != 0. && left_stick_pos.x != 0. {
-            info!("{:?} x: {} y: {}", gamepad, left_stick_pos.x, left_stick_pos.y);
+        ship.velocity = left_stick_pos;
+        if ship.velocity.x != 0. && ship.velocity.y != 0. {
+            info!(" x: {} y: {}", ship.velocity.x, ship.velocity.y);
         }
     }
 
@@ -73,6 +76,6 @@ fn gamepad_input(
     };
 
     if buttons.just_pressed(sails_button) {
-        
+        info!("Argggg! Sails be toggled!");
     }
 }

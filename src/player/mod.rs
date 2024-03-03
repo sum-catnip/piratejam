@@ -4,13 +4,14 @@ pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_player);
+        app.add_systems(Startup, spawn_player)
+            .add_systems(Update, move_player);
     }
 }
 
 #[derive(Component)]
 pub struct PlayerShip {
-    pub velocity: Vec3,
+    pub velocity: Vec2,
 }
 
 fn spawn_player(
@@ -26,7 +27,25 @@ fn spawn_player(
             ..default()
         },
         PlayerShip{
-            velocity: Vec3::ZERO,
+            velocity: Vec2::ZERO,
         }
     ));
+}
+
+const MOVEMENT_SCALE: f32 = 25.;
+
+fn move_player(
+    mut ships: Query<(&mut Transform, &PlayerShip)>,
+    time: Res<Time>,
+) {
+    for (mut transform, ship) in &mut ships {
+        let movement = (ship.velocity * MOVEMENT_SCALE) * time.delta_seconds();
+        if ship.velocity.x < 0.0 {
+            transform.scale.x = transform.scale.x.abs() * -1.;
+        } else if ship.velocity.x > 0.0 {
+            transform.scale.x = transform.scale.x.abs();
+        }
+        transform.translation.x += movement.x;
+        transform.translation.y += movement.y;
+    }
 }
