@@ -144,7 +144,7 @@ fn spawn_chunks(
                     cmd.spawn(MapBundleManaged::new(chunk, mat.as_mut()))
                         .insert(Chunk)
                         .insert(Transform {
-                            translation: Vec3::new(pos.x, pos.y, 0.),
+                            translation: Vec3::new(pos.x, pos.y, -1.),
                             ..default()
                         })
                         .id(),
