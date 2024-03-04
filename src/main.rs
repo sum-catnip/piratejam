@@ -6,6 +6,12 @@
 mod worldgen;
 use worldgen::WorldGenPlugin;
 
+mod player;
+use player::PlayerPlugin;
+
+mod gamepad;
+use gamepad::GamepadPlugin;
+
 use bevy::prelude::*;
 
 fn main() {
@@ -15,7 +21,7 @@ fn main() {
                 .set(ImagePlugin::default_nearest())
         )
         .insert_resource(Msaa::Off)
-        .add_plugins(WorldGenPlugin)
+        .add_plugins((DefaultPlugins, WorldGenPlugin, PlayerPlugin, GamepadPlugin))
         .add_systems(Startup, setup)
         .add_systems(Update, camera)
         .run();
