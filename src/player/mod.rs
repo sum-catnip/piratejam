@@ -14,30 +14,29 @@ pub struct PlayerShip {
     pub velocity: Vec2,
 }
 
-fn spawn_player(
-    mut commands: Commands,
-    assets: Res<AssetServer>
-) {
-    let sprite_size = Vec2::new(32.0, 32.0);
+fn spawn_player(mut commands: Commands, assets: Res<AssetServer>, mut layouts: ResMut<Assets<TextureAtlasLayout>>) {
+    let tex: Handle<Image> = assets.load("boat.png");
+    let layout = TextureAtlasLayout::from_grid(Vec2::new(32., 32.), 5, 1, None, None);
+    let atlas_layout = layouts.add(layout);
     commands.spawn((
-        SpriteBundle {
-            texture: assets.load("ducky.png"),
-            transform: Transform::from_scale(
-                Vec3::new(sprite_size.x / 200., sprite_size.y / 225., 1.)),
+        SpriteSheetBundle {
+            texture: tex,
+            atlas: TextureAtlas {
+                layout: atlas_layout,
+                index: 1,
+            },
+            transform: Transform::from_xyz(0., 0., 1.),
             ..default()
         },
-        PlayerShip{
+        PlayerShip {
             velocity: Vec2::ZERO,
-        }
+        },
     ));
 }
 
 const MOVEMENT_SCALE: f32 = 25.;
 
-fn move_player(
-    mut ships: Query<(&mut Transform, &PlayerShip)>,
-    time: Res<Time>,
-) {
+fn move_player(mut ships: Query<(&mut Transform, &PlayerShip)>, time: Res<Time>) {
     for (mut transform, ship) in &mut ships {
         let movement = (ship.velocity * MOVEMENT_SCALE) * time.delta_seconds();
         if ship.velocity.x < 0.0 {
@@ -49,3 +48,4 @@ fn move_player(
         transform.translation.y += movement.y;
     }
 }
+
