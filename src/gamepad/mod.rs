@@ -11,28 +11,26 @@ impl Plugin for GamepadPlugin {
     }
 }
 
-#[derive(Resource)]
+#[derive(Component)]
 pub struct MyGamepad(Gamepad);
 
 fn gamepad_connections(
     mut commands: Commands,
-    my_gamepad: Option<Res<MyGamepad>>,
     mut gamepad_evr: EventReader<GamepadConnectionEvent>,
+    gamepads_query: Query<(Entity, &MyGamepad)>,
 ) {
     for ev in gamepad_evr.read() {
         let id = ev.gamepad;
         match &ev.connection {
             GamepadConnection::Connected(info) => {
                 info!("New gamepad connected with ID: {:?}, name: {}", id, info.name);
-                if my_gamepad.is_none() {
-                    commands.insert_resource(MyGamepad(id));
-                }
+                commands.spawn(MyGamepad(id));
             }
             GamepadConnection::Disconnected => {
                 info!("Lost gamepad connection with ID: {:?}", id);
-                if let Some(MyGamepad(old_id)) = my_gamepad.as_deref() {
-                    if *old_id == id {
-                        commands.remove_resource::<MyGamepad>();
+                for (entity, gamepad) in gamepads_query.iter() {
+                    if gamepad.0 == id {
+                        commands.entity(entity).despawn();
                     }
                 }
             }
@@ -44,38 +42,30 @@ fn gamepad_connections(
 fn gamepad_input(
     axes: Res<Axis<GamepadAxis>>,
     buttons: Res<ButtonInput<GamepadButton>>,
-    my_gamepad: Option<Res<MyGamepad>>,
-    mut query: Query<&mut PlayerShip>,
+    query_gamepad: Query<&MyGamepad>,
+    mut query_ship: Query<&mut PlayerShip>,
 ) {
-    let mut ship = query.single_mut();
-    let gamepad = if let Some(gp) = my_gamepad {
-        gp.0
+    if let Ok(my_gamepad) = query_gamepad.get_single() {
+        let gamepad = my_gamepad.0;
+
+        let axis_lx = GamepadAxis { gamepad, axis_type: GamepadAxisType::LeftStickX };
+        let axis_ly = GamepadAxis { gamepad, axis_type: GamepadAxisType::LeftStickY };
+
+        if let Ok(mut ship) = query_ship.get_single_mut() {
+            if let (Some(x), Some(y)) = (axes.get(axis_lx), axes.get(axis_ly)) {
+                let left_stick_pos = Vec2::new(x, y);
+                ship.velocity = left_stick_pos;
+                if ship.velocity.x != 0. && ship.velocity.y != 0. {
+                    info!(" x: {} y: {}", ship.velocity.x, ship.velocity.y);
+                }
+            }
+
+            let sails_button = GamepadButton { gamepad, button_type: GamepadButtonType::South };
+            if buttons.just_pressed(sails_button) {
+                ship.sails_up = !ship.sails_up;
+            }
+        }
     } else {
         info!("No gamepad connected");
-        return;
-    };
-
-    let axis_lx = GamepadAxis {
-        gamepad, axis_type: GamepadAxisType::LeftStickX
-    };
-    let axis_ly = GamepadAxis {
-        gamepad, axis_type: GamepadAxisType::LeftStickY
-    };
-
-    if let (Some(x), Some(y)) = (axes.get(axis_lx), axes.get(axis_ly)) {
-        let left_stick_pos = Vec2::new(x, y);
-
-        ship.velocity = left_stick_pos;
-        if ship.velocity.x != 0. && ship.velocity.y != 0. {
-            info!(" x: {} y: {}", ship.velocity.x, ship.velocity.y);
-        }
-    }
-
-    let sails_button = GamepadButton {
-        gamepad, button_type: GamepadButtonType::South
-    };
-
-    if buttons.just_pressed(sails_button) {
-        info!("Argggg! Sails be toggled!");
     }
 }

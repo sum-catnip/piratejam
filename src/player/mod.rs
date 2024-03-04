@@ -2,16 +2,20 @@ use bevy::prelude::*;
 
 pub struct PlayerPlugin;
 
+// Rotation speed in radians per frame.
+const SHIP_ROTATION_SPEED: f32 = 0.005;
+
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_player)
-            .add_systems(Update, move_player);
+            .add_systems(Update, (move_player, toggle_sails));
     }
 }
 
 #[derive(Component)]
 pub struct PlayerShip {
     pub velocity: Vec2,
+    pub sails_up: bool,
 }
 
 fn spawn_player(
@@ -28,6 +32,7 @@ fn spawn_player(
         },
         PlayerShip{
             velocity: Vec2::ZERO,
+            sails_up: true,
         }
     ));
 }
@@ -48,4 +53,23 @@ fn move_player(
         transform.translation.x += movement.x;
         transform.translation.y += movement.y;
     }
+}
+
+fn toggle_sails(
+    mut ships: Query<(&mut Transform, &mut PlayerShip)>,
+    time: Res<Time>,
+) {
+    for (mut transform, mut ship) in &mut ships {
+        if ship.sails_up && ship.velocity != Vec2::ZERO {
+            ship.velocity = Vec2::ZERO;
+        } else if !ship.sails_up {
+            info!("Sails Down!");
+            ship.velocity = Vec2::from_angle(SHIP_ROTATION_SPEED);
+            let movement = (ship.velocity * (MOVEMENT_SCALE/10.)) * time.delta_seconds();
+            // TODO(kronsby): Get windspeed and direction here and set the values to that
+            transform.translation.x += movement.x;
+            transform.translation.y += movement.y;
+        }
+    }
+    
 }
