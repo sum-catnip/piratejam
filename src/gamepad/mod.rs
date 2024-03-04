@@ -1,5 +1,5 @@
-use bevy::prelude::*;
 use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent};
+use bevy::prelude::*;
 
 use crate::player::PlayerShip;
 
@@ -23,7 +23,10 @@ fn gamepad_connections(
         let id = ev.gamepad;
         match &ev.connection {
             GamepadConnection::Connected(info) => {
-                info!("New gamepad connected with ID: {:?}, name: {}", id, info.name);
+                info!(
+                    "New gamepad connected with ID: {:?}, name: {}",
+                    id, info.name
+                );
                 if my_gamepad.is_none() {
                     commands.insert_resource(MyGamepad(id));
                 }
@@ -36,7 +39,6 @@ fn gamepad_connections(
                     }
                 }
             }
-            _ => {}  // Discard anything else
         }
     }
 }
@@ -56,10 +58,12 @@ fn gamepad_input(
     };
 
     let axis_lx = GamepadAxis {
-        gamepad, axis_type: GamepadAxisType::LeftStickX
+        gamepad,
+        axis_type: GamepadAxisType::LeftStickX,
     };
     let axis_ly = GamepadAxis {
-        gamepad, axis_type: GamepadAxisType::LeftStickY
+        gamepad,
+        axis_type: GamepadAxisType::LeftStickY,
     };
 
     if let (Some(x), Some(y)) = (axes.get(axis_lx), axes.get(axis_ly)) {
@@ -72,10 +76,12 @@ fn gamepad_input(
     }
 
     let sails_button = GamepadButton {
-        gamepad, button_type: GamepadButtonType::South
+        gamepad,
+        button_type: GamepadButtonType::South,
     };
 
     if buttons.just_pressed(sails_button) {
         info!("Argggg! Sails be toggled!");
     }
 }
+
