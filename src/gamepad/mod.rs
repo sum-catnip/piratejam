@@ -53,7 +53,6 @@ fn gamepad_input(
     let gamepad = if let Some(gp) = my_gamepad {
         gp.0
     } else {
-        info!("No gamepad connected");
         return;
     };
 
