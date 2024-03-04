@@ -16,15 +16,16 @@ use bevy::prelude::*;
 
 fn main() {
     App::new()
-        .add_plugins(
-            DefaultPlugins
-                .set(ImagePlugin::default_nearest())
-        )
+        .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
         .insert_resource(Msaa::Off)
-        .add_plugins((DefaultPlugins, WorldGenPlugin, PlayerPlugin, GamepadPlugin))
+        .add_plugins((WorldGenPlugin, PlayerPlugin, GamepadPlugin))
         .add_systems(Startup, setup)
         .add_systems(Update, camera)
         .run();
+}
+
+fn setup(mut commands: Commands) {
+    commands.spawn(Camera2dBundle::default());
 }
 
 fn camera(
@@ -68,8 +69,4 @@ fn camera(
     // Important! We need to restore the Z values when moving the camera around.
     // Bevy has a specific camera setup and this can mess with how our layers are shown.
     transform.translation.z = z;
-}
-
-fn setup(mut commands: Commands) {
-    commands.spawn(Camera2dBundle::default());
 }
