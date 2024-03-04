@@ -12,13 +12,16 @@ use player::PlayerPlugin;
 mod gamepad;
 use gamepad::GamepadPlugin;
 
+mod controls;
+use controls::ControlsPlugin;
+
 use bevy::prelude::*;
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
         .insert_resource(Msaa::Off)
-        .add_plugins((WorldGenPlugin, PlayerPlugin, GamepadPlugin))
+        .add_plugins((WorldGenPlugin, PlayerPlugin, GamepadPlugin, ControlsPlugin))
         .add_systems(Startup, setup)
         .add_systems(Update, camera)
         .run();

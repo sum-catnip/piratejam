@@ -1,7 +1,8 @@
 use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent};
 use bevy::prelude::*;
 
-use crate::player::PlayerShip;
+use crate::player::{Player, Velocity};
+use crate::controls::{ PlayerShot, ShootDirection };
 
 pub struct GamepadPlugin;
 
@@ -47,9 +48,10 @@ fn gamepad_input(
     axes: Res<Axis<GamepadAxis>>,
     buttons: Res<ButtonInput<GamepadButton>>,
     my_gamepad: Option<Res<MyGamepad>>,
-    mut query: Query<&mut PlayerShip>,
+    mut shoot: EventWriter<PlayerShot>,
+    mut query: Query<&mut Velocity, With<Player>>,
 ) {
-    let mut ship = query.single_mut();
+    let mut vel = query.single_mut();
     let gamepad = if let Some(gp) = my_gamepad {
         gp.0
     } else {
@@ -68,9 +70,9 @@ fn gamepad_input(
     if let (Some(x), Some(y)) = (axes.get(axis_lx), axes.get(axis_ly)) {
         let left_stick_pos = Vec2::new(x, y);
 
-        ship.velocity = left_stick_pos;
-        if ship.velocity.x != 0. && ship.velocity.y != 0. {
-            info!(" x: {} y: {}", ship.velocity.x, ship.velocity.y);
+        vel.0 = left_stick_pos;
+        if vel.0.x != 0. && vel.0.y != 0. {
+            info!(" x: {} y: {}", vel.0.x, vel.0.y);
         }
     }
 
@@ -79,8 +81,25 @@ fn gamepad_input(
         button_type: GamepadButtonType::South,
     };
 
+    let shoot_button_left = GamepadButton {
+        gamepad,
+        button_type: GamepadButtonType::LeftTrigger,
+    };
+
+    let shoot_button_right = GamepadButton {
+        gamepad,
+        button_type: GamepadButtonType::RightTrigger,
+    };
+
     if buttons.just_pressed(sails_button) {
         info!("Argggg! Sails be toggled!");
     }
-}
 
+    if buttons.just_pressed(shoot_button_left) {
+        shoot.send(PlayerShot(ShootDirection::Left));
+    }
+
+    if buttons.just_pressed(shoot_button_right) {
+        shoot.send(PlayerShot(ShootDirection::Right));
+    }
+}
