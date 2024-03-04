@@ -3046,6 +3046,7 @@ dependencies = [
  "bevy-inspector-egui",
  "bevy_fast_tilemap",
  "noise",
+ "num_enum 0.7.2",
 ]
 
 [[package]]
