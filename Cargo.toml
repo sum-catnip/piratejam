@@ -16,7 +16,7 @@ opt-level = 1
 opt-level = 3
 
 [dependencies]
-bevy = "0.13"
+bevy = { version = "0.13", features = ["wayland"] }
 bevy-inspector-egui = "0.23.3"
 bevy_fast_tilemap = "0.7.0"
 noise = "0.8.2"
