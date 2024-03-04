@@ -10,7 +10,12 @@ use bevy::prelude::*;
 
 fn main() {
     App::new()
-        .add_plugins((DefaultPlugins, WorldGenPlugin))
+        .add_plugins(
+            DefaultPlugins
+                .set(ImagePlugin::default_nearest())
+        )
+        .insert_resource(Msaa::Off)
+        .add_plugins(WorldGenPlugin)
         .add_systems(Startup, setup)
         .add_systems(Update, camera)
         .run();
