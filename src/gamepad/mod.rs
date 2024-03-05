@@ -12,13 +12,13 @@ impl Plugin for GamepadPlugin {
     }
 }
 
-#[derive(Resource)]
+#[derive(Component)]
 pub struct MyGamepad(Gamepad);
 
 fn gamepad_connections(
     mut commands: Commands,
-    my_gamepad: Option<Res<MyGamepad>>,
     mut gamepad_evr: EventReader<GamepadConnectionEvent>,
+    gamepad_query: Query<(Entity, &MyGamepad)>,
 ) {
     for ev in gamepad_evr.read() {
         let id = ev.gamepad;
@@ -28,16 +28,15 @@ fn gamepad_connections(
                     "New gamepad connected with ID: {:?}, name: {}",
                     id, info.name
                 );
-                if my_gamepad.is_none() {
-                    commands.insert_resource(MyGamepad(id));
+                let gamepad_exists = gamepad_query.iter().any(|(_, gp)| gp.0 == id);
+                if !gamepad_exists {
+                    commands.spawn(MyGamepad(id));
                 }
             }
             GamepadConnection::Disconnected => {
                 info!("Lost gamepad connection with ID: {:?}", id);
-                if let Some(MyGamepad(old_id)) = my_gamepad.as_deref() {
-                    if *old_id == id {
-                        commands.remove_resource::<MyGamepad>();
-                    }
+                if let Some((ent, _)) = gamepad_query.iter().find(|(_, gp)| gp.0 == id) {
+                    commands.entity(ent).despawn();
                 }
             }
         }
@@ -47,59 +46,56 @@ fn gamepad_connections(
 fn gamepad_input(
     axes: Res<Axis<GamepadAxis>>,
     buttons: Res<ButtonInput<GamepadButton>>,
-    my_gamepad: Option<Res<MyGamepad>>,
     mut shoot: EventWriter<PlayerShot>,
-    mut query: Query<&mut Velocity, With<Player>>,
+    mut vel_query: Query<&mut Velocity, With<Player>>,
+    gamepad_query: Query<&MyGamepad>,
 ) {
-    let mut vel = query.single_mut();
-    let gamepad = if let Some(gp) = my_gamepad {
-        gp.0
-    } else {
-        return;
-    };
+    let mut vel = vel_query.single_mut();
 
-    let axis_lx = GamepadAxis {
-        gamepad,
-        axis_type: GamepadAxisType::LeftStickX,
-    };
-    let axis_ly = GamepadAxis {
-        gamepad,
-        axis_type: GamepadAxisType::LeftStickY,
-    };
+    for MyGamepad(gamepad) in gamepad_query.iter() {
+        let axis_lx = GamepadAxis {
+            gamepad: *gamepad,
+            axis_type: GamepadAxisType::LeftStickX,
+        };
+        let axis_ly = GamepadAxis {
+            gamepad: *gamepad,
+            axis_type: GamepadAxisType::LeftStickY,
+        };
 
-    if let (Some(x), Some(y)) = (axes.get(axis_lx), axes.get(axis_ly)) {
-        let left_stick_pos = Vec2::new(x, y);
+        if let (Some(x), Some(y)) = (axes.get(axis_lx), axes.get(axis_ly)) {
+            let left_stick_pos = Vec2::new(x, y);
 
-        vel.0 = left_stick_pos;
-        if vel.0.x != 0. && vel.0.y != 0. {
-            info!(" x: {} y: {}", vel.0.x, vel.0.y);
+            vel.0 = left_stick_pos;
+            if vel.0.x != 0. && vel.0.y != 0. {
+                info!(" x: {} y: {}", vel.0.x, vel.0.y);
+            }
         }
-    }
 
-    let sails_button = GamepadButton {
-        gamepad,
-        button_type: GamepadButtonType::South,
-    };
+        let sails_button = GamepadButton {
+            gamepad: *gamepad,
+            button_type: GamepadButtonType::South,
+        };
 
-    let shoot_button_left = GamepadButton {
-        gamepad,
-        button_type: GamepadButtonType::LeftTrigger,
-    };
+        let shoot_button_left = GamepadButton {
+            gamepad: *gamepad,
+            button_type: GamepadButtonType::LeftTrigger,
+        };
 
-    let shoot_button_right = GamepadButton {
-        gamepad,
-        button_type: GamepadButtonType::RightTrigger,
-    };
+        let shoot_button_right = GamepadButton {
+            gamepad: *gamepad,
+            button_type: GamepadButtonType::RightTrigger,
+        };
 
-    if buttons.just_pressed(sails_button) {
-        info!("Argggg! Sails be toggled!");
-    }
+        if buttons.just_pressed(sails_button) {
+            info!("Argggg! Sails be toggled!");
+        }
 
-    if buttons.just_pressed(shoot_button_left) {
-        shoot.send(PlayerShot(ShootDirection::Left));
-    }
+        if buttons.just_pressed(shoot_button_left) {
+            shoot.send(PlayerShot(ShootDirection::Left));
+        }
 
-    if buttons.just_pressed(shoot_button_right) {
-        shoot.send(PlayerShot(ShootDirection::Right));
+        if buttons.just_pressed(shoot_button_right) {
+            shoot.send(PlayerShot(ShootDirection::Right));
+        }
     }
 }
