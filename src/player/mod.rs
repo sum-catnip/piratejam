@@ -8,13 +8,37 @@ pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_player)
-            .add_systems(Update, (move_entites, shoot, update_sprite, tile_collision));
+        app
+            .add_systems(Startup, spawn_player)
+            .add_systems(Update, (move_entites, shoot, update_sprite, tile_collision))
+            .add_event::<SpawnLiving>()
+        ;
     }
 }
 
+#[derive(Event)]
+pub struct SpawnLiving(pub Entity);
+
 #[derive(Component)]
 pub struct Velocity(pub Vec2);
+
+#[derive(Component)]
+pub struct DamageCooldown(Timer);
+
+#[derive(Component)]
+pub struct Health {
+    pub health: u32,
+    pub max: u32,
+}
+
+// size of the art in pixels
+#[derive(Component)]
+pub struct Size(IVec2);
+
+// todo: remove speed from move_entities function
+// use it only to initialize velocity, as velocity is speed and direction
+#[derive(Component)]
+pub struct Speed(f32);
 
 #[derive(Component)]
 pub struct Player;
@@ -23,24 +47,31 @@ pub struct Player;
 pub struct PlayerBundle {
     marker: Player,
     vel: Velocity,
+    speed: Speed,
     sheet: SpriteSheetBundle,
+    health: Health,
+    dmg_cooldown: DamageCooldown,
+    // this should endup in a seperate ship specific container once we have ship-hopping
+    size: Size
 }
 
 #[derive(Bundle)]
 pub struct CannonballBundle {
     vel: Velocity,
+    speed: Speed,
     sprite: SpriteBundle,
 }
 
 fn spawn_player(
     mut commands: Commands,
     assets: Res<AssetServer>,
+    mut spawnevt: EventWriter<SpawnLiving>,
     mut layouts: ResMut<Assets<TextureAtlasLayout>>,
 ) {
     let tex: Handle<Image> = assets.load("boat.png");
     let layout = TextureAtlasLayout::from_grid(Vec2::new(32., 32.), 5, 1, None, None);
     let atlas_layout = layouts.add(layout);
-    commands.spawn(PlayerBundle {
+    let id = commands.spawn(PlayerBundle {
         marker: Player,
         sheet: SpriteSheetBundle {
             texture: tex,
@@ -52,14 +83,21 @@ fn spawn_player(
             ..default()
         },
         vel: Velocity(Vec2::ZERO),
-    });
+        speed: Speed(35.),
+        health: Health {
+            health: 100,
+            max: 100,
+        },
+        dmg_cooldown: DamageCooldown(Timer::from_seconds(1., TimerMode::Repeating)),
+        size: Size(IVec2::new(32, 32))
+    }).id();
+
+    spawnevt.send(SpawnLiving(id));
 }
 
-const MOVEMENT_SCALE: f32 = 35.;
-
-fn move_entites(mut ships: Query<(&mut Transform, &Velocity)>, time: Res<Time>) {
-    for (mut transform, velocity) in &mut ships {
-        let movement = (velocity.0 * MOVEMENT_SCALE) * time.delta_seconds();
+fn move_entites(mut ships: Query<(&mut Transform, &Velocity, &Speed)>, time: Res<Time>) {
+    for (mut transform, velocity, speed) in &mut ships {
+        let movement = (velocity.0 * speed.0) * time.delta_seconds();
         if velocity.0.x < 0.0 {
             transform.scale.x = transform.scale.x.abs() * -1.;
         } else if velocity.0.x > 0.0 {
@@ -86,6 +124,7 @@ fn shoot(
 
         cmd.spawn(CannonballBundle {
             vel: Velocity(vel),
+            speed: Speed(70.),
             sprite: SpriteBundle {
                 texture: assets.load("cannonball.png"),
                 transform: Transform::from_translation(ptransform.translation),
@@ -142,13 +181,21 @@ fn update_sprite(mut query: Query<(&Velocity, &mut Sprite, &mut TextureAtlas)>) 
 fn tile_collision(
     terrain_noise: Res<TerrainNoise>,
     worldgencfg: Res<WorldgenConfig>,
-    mut player: Query<(&mut Velocity, &Transform), With<Player>>,
+    time: Res<Time>,
+    mut player: Query<(&mut Velocity, &Transform, &mut Health, &mut DamageCooldown), With<Player>>,
 ) {
-    let (mut vel, ptransform) = player.single_mut();
-    let world_pos = ptransform.translation.truncate() + vel.0; // Add this to kinda predict where it is gonna be in a second.
+    let (mut vel, ptransform, mut hp, mut cooldown) = player.single_mut();
+    cooldown.0.tick(time.delta());
+    // Add this to kinda predict where it is gonna be in a second.
+    let world_pos = ptransform.translation.truncate() + vel.0;
     let grid_pos = world2grid_tile(world_pos);
     let tile = tile_at_pos(grid_pos, &terrain_noise, &worldgencfg);
     if matches!(tile, Tile::Sand | Tile::Sand2) {
         *vel = Velocity(Vec2::ZERO);
+        info!("collision with terrain detected");
+        if cooldown.0.just_finished() {
+            // i dunno lets do 10 for now
+            hp.health -= 10;
+        }
     }
 }
