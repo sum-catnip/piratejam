@@ -29,10 +29,10 @@ impl Plugin for WorldGenPlugin {
 #[repr(u32)]
 #[derive(Default, Reflect, IntoPrimitive, TryFromPrimitive)]
 pub enum Tile {
-    #[default]
     Sand = 0,
     Sand2 = 1,
-    Water = 2,
+    #[default]
+    Water = 2
 }
 
 #[derive(Resource)]
@@ -87,7 +87,7 @@ fn setup(mut cmd: Commands, assets: Res<AssetServer>) {
         render_dist: 5,
         wavelength: 200.,
         land_threshhold: 0.65,
-        sand_freq: 100.,
+        sand_freq: 10000.,
     });
 
     cmd.insert_resource(TerrainNoise {
@@ -160,7 +160,7 @@ fn spawn_chunk(
     cmd.spawn(MapBundleManaged::new(chunk, mat))
         .insert(Chunk)
         .insert(Transform {
-            translation: Vec3::new(pos.x, pos.y, 0.),
+            translation: Vec3::new(pos.x, pos.y, -1.),
             ..default()
         })
         .id()
@@ -239,10 +239,15 @@ fn sand_noise(pos: IVec2, noise: &TerrainNoise, cfg: &WorldgenConfig) -> Tile {
             .get([pos.x as f64 * cfg.sand_freq, pos.y as f64 * cfg.sand_freq]),
     );
 
-    let min = Tile::Sand as u32;
-    let max = Tile::Sand2 as u32;
-    let choice = (val * (max - min + 1) as f64 + min as f64).floor() as u32;
-    choice.try_into().unwrap()
+    //let min = Tile::Sand as u32;
+    //let max = Tile::Sand3 as u32;
+    //let choice = (val * (max - min + 1) as f64 + min as f64).floor() as u32;
+    //choice.try_into().unwrap()
+    if val >= 0.6 {
+        Tile::Sand2
+    } else {
+        Tile::Sand
+    }
 }
 
 pub fn tile_at_pos(pos: IVec2, noise: &TerrainNoise, cfg: &WorldgenConfig) -> Tile {
