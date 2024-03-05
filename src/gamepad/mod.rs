@@ -1,8 +1,8 @@
 use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent};
 use bevy::prelude::*;
 
+use crate::controls::{PlayerShot, ShootDirection};
 use crate::player::{Player, Velocity};
-use crate::controls::{ PlayerShot, ShootDirection };
 
 pub struct GamepadPlugin;
 

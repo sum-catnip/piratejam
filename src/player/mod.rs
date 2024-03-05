@@ -11,7 +11,7 @@ impl Plugin for PlayerPlugin {
 }
 
 #[derive(Component)]
-pub struct Velocity(pub Vec2); 
+pub struct Velocity(pub Vec2);
 
 #[derive(Component)]
 pub struct Player;
@@ -92,30 +92,41 @@ fn shoot(
     }
 }
 
-fn update_sprite(
-    mut query: Query<(&Velocity, &mut Sprite, &mut TextureAtlas)>,
-) {
+fn update_sprite(mut query: Query<(&Velocity, &mut Sprite, &mut TextureAtlas)>) {
     for (vel, mut sprite, mut atlas) in query.iter_mut() {
         let direction = vel.0.normalize_or_zero();
         let angle = direction.y.atan2(direction.x);
 
-        let (index, flip) = if (angle > (-std::f32::consts::PI / 8.0)) && (angle <= (std::f32::consts::PI / 8.0)) {
-            (2, true) // Right
-        } else if (angle > (std::f32::consts::PI / 8.0)) && (angle <= ((3.0 * std::f32::consts::PI) / 8.0)) {
-            (0, true) // Up Right
-        } else if (angle > ((3.0 * std::f32::consts::PI)) / 8.0) && (angle <= ((5.0 * std::f32::consts::PI) / 8.0)) {
-            (1, false) // Up
-        } else if (angle > ((5.0 * std::f32::consts::PI)) / 8.0) && (angle <= ((7.0 * std::f32::consts::PI) / 8.0)) {
-            (0, false) // Up Left
-        } else if (angle <= (-std::f32::consts::PI / 8.0)) && (angle > ((-3.0 * std::f32::consts::PI) / 8.0)) {
-            (3, true) // Down Right
-        } else if (angle <= ((-3.0 * std::f32::consts::PI) / 8.0)) && (angle > ((-5.0 * std::f32::consts::PI) / 8.0)) {
-            (4, false) // Down
-        } else if (angle <= ((-5.0 * std::f32::consts::PI) / 8.0)) && (angle > ((-7.0 * std::f32::consts::PI) / 8.0)) {
-            (3, false) // Down Left
-        } else {
-            (2, false) // Left
-        };
+        let (index, flip) =
+            if (angle > (-std::f32::consts::PI / 8.0)) && (angle <= (std::f32::consts::PI / 8.0)) {
+                (2, true) // Right
+            } else if (angle > (std::f32::consts::PI / 8.0))
+                && (angle <= ((3.0 * std::f32::consts::PI) / 8.0))
+            {
+                (0, true) // Up Right
+            } else if (angle > (3.0 * std::f32::consts::PI) / 8.0)
+                && (angle <= ((5.0 * std::f32::consts::PI) / 8.0))
+            {
+                (1, false) // Up
+            } else if (angle > (5.0 * std::f32::consts::PI) / 8.0)
+                && (angle <= ((7.0 * std::f32::consts::PI) / 8.0))
+            {
+                (0, false) // Up Left
+            } else if (angle <= (-std::f32::consts::PI / 8.0))
+                && (angle > ((-3.0 * std::f32::consts::PI) / 8.0))
+            {
+                (3, true) // Down Right
+            } else if (angle <= ((-3.0 * std::f32::consts::PI) / 8.0))
+                && (angle > ((-5.0 * std::f32::consts::PI) / 8.0))
+            {
+                (4, false) // Down
+            } else if (angle <= ((-5.0 * std::f32::consts::PI) / 8.0))
+                && (angle > ((-7.0 * std::f32::consts::PI) / 8.0))
+            {
+                (3, false) // Down Left
+            } else {
+                (2, false) // Left
+            };
 
         atlas.index = index;
 

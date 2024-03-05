@@ -1,7 +1,10 @@
 use bevy::prelude::*;
 
 #[derive(Debug)]
-pub enum ShootDirection { Left, Right }
+pub enum ShootDirection {
+    Left,
+    Right,
+}
 
 #[derive(Event)]
 pub struct PlayerShot(pub ShootDirection);

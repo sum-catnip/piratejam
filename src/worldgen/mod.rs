@@ -55,7 +55,7 @@ pub struct WorldgenConfig {
     render_dist: u32,
     wavelength: f64,
     land_threshhold: f64,
-    sand_freq: f64
+    sand_freq: f64,
 }
 
 #[derive(Reflect, Resource, Default, InspectorOptions)]
@@ -63,7 +63,7 @@ pub struct WorldgenConfig {
 struct MapgridDebug {
     mouse_chunk: IVec2,
     mouse_tile: IVec2,
-    mouse_tileid: Tile
+    mouse_tileid: Tile,
 }
 
 #[derive(Default, Resource)]
@@ -87,7 +87,7 @@ fn setup(mut cmd: Commands, assets: Res<AssetServer>) {
         render_dist: 5,
         wavelength: 200.,
         land_threshhold: 0.65,
-        sand_freq: 100.
+        sand_freq: 100.,
     });
 
     cmd.insert_resource(TerrainNoise {
@@ -217,7 +217,7 @@ fn despawn_chunks(
         let chunkpos_cam = world2grid_chunk(cam_transform.translation.xy());
         let chunkpos_chunk = world2grid_chunk(chunk_transform.translation.xy());
         let dist = manhatten_dist(chunkpos_cam, chunkpos_chunk);
-        if dist > render_dist * 2 +1 {
+        if dist > render_dist * 2 + 1 {
             let e = chunks
                 .0
                 .remove(&chunkpos_chunk)
@@ -233,20 +233,24 @@ fn normal_simplex(noise: f64) -> f64 {
 }
 
 fn sand_noise(pos: IVec2, noise: &TerrainNoise, cfg: &WorldgenConfig) -> Tile {
-    let val = normal_simplex(noise
-        .sand
-        .get([pos.x as f64 * cfg.sand_freq, pos.y as f64 * cfg.sand_freq]));
+    let val = normal_simplex(
+        noise
+            .sand
+            .get([pos.x as f64 * cfg.sand_freq, pos.y as f64 * cfg.sand_freq]),
+    );
 
     let min = Tile::Sand as u32;
     let max = Tile::Sand2 as u32;
-    let choice = (val * (max - min +1) as f64 + min as f64).floor() as u32;
+    let choice = (val * (max - min + 1) as f64 + min as f64).floor() as u32;
     choice.try_into().unwrap()
 }
 
 pub fn tile_at_pos(pos: IVec2, noise: &TerrainNoise, cfg: &WorldgenConfig) -> Tile {
-    let val = normal_simplex(noise
-        .altitude
-        .get([pos.x as f64 / cfg.wavelength, pos.y as f64 / cfg.wavelength]));
+    let val = normal_simplex(
+        noise
+            .altitude
+            .get([pos.x as f64 / cfg.wavelength, pos.y as f64 / cfg.wavelength]),
+    );
     match val {
         x if x >= cfg.land_threshhold => sand_noise(pos, noise, cfg),
         _ => Tile::Water,
