@@ -1,4 +1,7 @@
-use crate::controls::{PlayerShot, ShootDirection};
+use crate::{
+    controls::{PlayerShot, ShootDirection},
+    worldgen::{tile_at_pos, world2grid_tile, TerrainNoise, Tile, WorldgenConfig},
+};
 use bevy::prelude::*;
 
 pub struct PlayerPlugin;
@@ -6,7 +9,7 @@ pub struct PlayerPlugin;
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_player)
-            .add_systems(Update, (move_entites, shoot, update_sprite));
+            .add_systems(Update, (move_entites, shoot, update_sprite, tile_collision));
     }
 }
 
@@ -52,7 +55,7 @@ fn spawn_player(
     });
 }
 
-const MOVEMENT_SCALE: f32 = 25.;
+const MOVEMENT_SCALE: f32 = 35.;
 
 fn move_entites(mut ships: Query<(&mut Transform, &Velocity)>, time: Res<Time>) {
     for (mut transform, velocity) in &mut ships {
@@ -133,5 +136,19 @@ fn update_sprite(mut query: Query<(&Velocity, &mut Sprite, &mut TextureAtlas)>) 
         if flip {
             sprite.flip_x = flip;
         }
+    }
+}
+
+fn tile_collision(
+    terrain_noise: Res<TerrainNoise>,
+    worldgencfg: Res<WorldgenConfig>,
+    mut player: Query<(&mut Velocity, &Transform), With<Player>>,
+) {
+    let (mut vel, ptransform) = player.single_mut();
+    let world_pos = ptransform.translation.truncate() + vel.0; // Add this to kinda predict where it is gonna be in a second.
+    let grid_pos = world2grid_tile(world_pos);
+    let tile = tile_at_pos(grid_pos, &terrain_noise, &worldgencfg);
+    if matches!(tile, Tile::Sand | Tile::Sand2) {
+        *vel = Velocity(Vec2::ZERO);
     }
 }
