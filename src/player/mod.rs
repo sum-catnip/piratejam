@@ -10,7 +10,7 @@ impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_systems(Startup, spawn_player)
-            .add_systems(Update, (move_entites, shoot, update_sprite, tile_collision))
+            .add_systems(Update, (move_player, shoot, update_sprite, tile_collision))
             .add_event::<SpawnLiving>()
         ;
     }
@@ -23,7 +23,7 @@ pub struct SpawnLiving(pub Entity);
 pub struct Velocity(pub Vec2);
 
 #[derive(Component)]
-pub struct DamageCooldown(Timer);
+pub struct DamageCooldown(pub Timer);
 
 #[derive(Component)]
 pub struct Health {
@@ -33,12 +33,12 @@ pub struct Health {
 
 // size of the art in pixels
 #[derive(Component)]
-pub struct Size(IVec2);
+pub struct Size(pub IVec2);
 
 // todo: remove speed from move_entities function
 // use it only to initialize velocity, as velocity is speed and direction
 #[derive(Component)]
-pub struct Speed(f32);
+pub struct Speed(pub f32);
 
 #[derive(Component)]
 pub struct Player;
@@ -95,7 +95,7 @@ fn spawn_player(
     spawnevt.send(SpawnLiving(id));
 }
 
-fn move_entites(mut ships: Query<(&mut Transform, &Velocity, &Speed)>, time: Res<Time>) {
+fn move_player(mut ships: Query<(&mut Transform, &Velocity, &Speed)>, time: Res<Time>) {
     for (mut transform, velocity, speed) in &mut ships {
         let movement = (velocity.0 * speed.0) * time.delta_seconds();
         if velocity.0.x < 0.0 {

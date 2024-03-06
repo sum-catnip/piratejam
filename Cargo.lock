@@ -3023,6 +3023,7 @@ dependencies = [
  "bevy_fast_tilemap",
  "noise",
  "num_enum",
+ "rand 0.8.5",
 ]
 
 [[package]]
