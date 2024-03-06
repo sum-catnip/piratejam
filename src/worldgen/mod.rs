@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
-use bevy::prelude::*;
+use bevy::{math::{ivec2, vec2}, prelude::*};
 use bevy_fast_tilemap::{FastTileMapPlugin, Map, MapBundleManaged, MapIndexer, AXONOMETRIC};
 use bevy_inspector_egui::{prelude::*, quick::ResourceInspectorPlugin};
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
 
-use noise::{NoiseFn, Simplex};
+use noise::{NoiseFn, Simplex, SuperSimplex, Value};
 
 pub struct WorldGenPlugin;
 impl Plugin for WorldGenPlugin {
@@ -26,23 +26,77 @@ impl Plugin for WorldGenPlugin {
     }
 }
 
+// art department:
+// ⬇️ ↙️ ⬅️ ↖️ ⬆️ ↗️ ➡️ ↘️  and added the inner corners at the end ⬇️ ⬅️ ⬆️ ➡️
 #[repr(u32)]
 #[derive(Default, Reflect, IntoPrimitive, TryFromPrimitive)]
-pub enum Tile {
-    Sand = 0,
-    Sand2 = 1,
+pub enum TerrainTile {
     #[default]
-    Water = 2,
+    Water = 0,
+    Sand1 = 1,
+    Sand2 = 2,
+    IslandBorder1Bottom = 3,
+    IslandBorder1BottomLeft = 4,
+    IslandBorder1Left = 5,
+    IslandBorder1TopLeft = 6,
+    IslandBorder1Top = 7,
+    IslandBorder1TopRight = 8,
+    IslandBorder1Right = 9,
+    IslandBorder1BottomRight = 10,
+    IslandBorder1InnerDown = 11,
+    IslandBorder1InnerLeft = 12,
+    IslandBorder1InnerUp = 13,
+    IslandBorder1InnerRight = 14,
+    IslandBorder2Bottom = 15,
+    IslandBorder2BottomLeft = 16,
+    IslandBorder2Left = 17,
+    IslandBorder2TopLeft = 18,
+    IslandBorder2Top = 19,
+    IslandBorder2TopRight = 20,
+    IslandBorder2Right = 21,
+    IslandBorder2BottomRight = 22,
+    IslandBorder2InnerBottom = 23,
+    IslandBorder2InnerLeft = 24,
+    IslandBorder2InnerTop = 25,
+    IslandBorder2InnerRight = 26,
+}
+
+#[repr(u32)]
+#[derive(IntoPrimitive, TryFromPrimitive)]
+enum RelativeBorderTile {
+    IslandBorderBottom = 0,
+    IslandBorderBottomLeft = 1,
+    IslandBorderLeft = 2,
+    IslandBorderTopLeft = 3,
+    IslandBorderTop = 4,
+    IslandBorderTopRight = 5,
+    IslandBorderRight = 6,
+    IslandBorderBottomRight = 7,
+    IslandBorderInnerBottom = 8,
+    IslandBorderInnerLeft = 9,
+    IslandBorderInnerTop = 10,
+    IslandBorderInnerRight = 11,
+}
+
+#[repr(u32)]
+#[derive(Default, Reflect, IntoPrimitive, TryFromPrimitive)]
+pub enum Biome {
+    #[default]
+    Ocean,
+    Island,
 }
 
 #[derive(Resource)]
-struct Tileset {
-    tex: Handle<Image>,
+struct Tilesets {
+    terrain: Handle<Image>,
+    features: Handle<Image>,
+    debug: Handle<Image>
 }
 
 #[derive(Resource)]
 pub struct TerrainNoise {
-    altitude: Simplex,
+    heightmap: SuperSimplex,
+    random: Value,
     sand: Simplex,
 }
 
@@ -54,7 +108,7 @@ struct Chunk;
 pub struct WorldgenConfig {
     render_dist: u32,
     wavelength: f64,
-    land_threshhold: f64,
+    island_threshhold: f64,
     sand_freq: f64,
 }
 
@@ -63,7 +117,8 @@ pub struct WorldgenConfig {
 struct MapgridDebug {
     mouse_chunk: IVec2,
     mouse_tile: IVec2,
-    mouse_tileid: Tile,
+    mouse_tileid: TerrainTile,
+    mouse_biome: Biome,
 }
 
 #[derive(Default, Resource)]
@@ -80,19 +135,22 @@ const AXONOMETRIC_PROJECTION: Mat2 = Mat2::from_cols(Vec2::new(0.5, -0.5), Vec2:
 const INV_AXONOMETRIC_PROJECTION: Mat2 = Mat2::from_cols(Vec2::new(1.0, 1.0), Vec2::new(-1.0, 1.0));
 
 fn setup(mut cmd: Commands, assets: Res<AssetServer>) {
-    let tex = assets.load("tiles.png");
-    cmd.insert_resource(Tileset { tex });
+    let terrain = assets.load("terrain.png");
+    let features = assets.load("features.png");
+    let debug = assets.load("iso.png");
+    cmd.insert_resource(Tilesets { terrain, features, debug });
 
     cmd.insert_resource(WorldgenConfig {
         render_dist: 5,
         wavelength: 200.,
-        land_threshhold: 0.65,
+        island_threshhold: 0.65,
         sand_freq: 10000.,
     });
 
     cmd.insert_resource(TerrainNoise {
-        altitude: Simplex::new(1337),
+        heightmap: SuperSimplex::new(1337),
         sand: Simplex::new(1337),
+        random: Value::new(1337),
     });
 }
 
@@ -140,27 +198,40 @@ fn debug_view(
     }) {
         dbg.mouse_chunk = world2grid_chunk(worldpos);
         dbg.mouse_tile = world2grid_tile(worldpos);
-        dbg.mouse_tileid = tile_at_pos(dbg.mouse_tile, noise.as_ref(), cfg.as_ref())
+        dbg.mouse_tileid = noise.tile_at_pos(dbg.mouse_tile, cfg.as_ref());
+        dbg.mouse_biome = noise.biome_at_pos(dbg.mouse_tile, cfg.as_ref());
     }
 }
 
 fn spawn_chunk(
     cmd: &mut Commands,
     mat: &mut Assets<Map>,
-    ts: &Tileset,
+    ts: &Tilesets,
     cfg: &WorldgenConfig,
     noise: &TerrainNoise,
     chunkpos: IVec2,
 ) -> Entity {
-    let chunk = Map::builder(CHUNK_SIZE_TILES, ts.tex.clone(), TILE_SIZE)
+    let pos = grid2world_chunk(chunkpos);
+    let chunk_terrain = Map::builder(CHUNK_SIZE_TILES, ts.terrain.clone(), TILE_SIZE)
         .with_projection(AXONOMETRIC)
         .build_and_initialize(|index| init_chunk(index, chunkpos, noise, cfg));
 
-    let pos = grid2world_chunk(chunkpos);
-    cmd.spawn(MapBundleManaged::new(chunk, mat))
+    /*
+    let chunk_debug = Map::builder(CHUNK_SIZE_TILES, ts.debug.clone(), TILE_SIZE)
+        .with_projection(AXONOMETRIC)
+        .build_and_set(|_| 0);
+
+    _ = cmd.spawn(MapBundleManaged::new(chunk_debug, mat))
+        .insert(Transform {
+            translation: Vec3::new(pos.x, pos.y, 0.),
+            ..default()
+        })
+        .id();
+    */
+    cmd.spawn(MapBundleManaged::new(chunk_terrain, mat))
         .insert(Chunk)
         .insert(Transform {
-            translation: Vec3::new(pos.x, pos.y, -1.),
+            translation: Vec3::new(pos.x, pos.y, -100.),
             ..default()
         })
         .id()
@@ -170,7 +241,7 @@ fn spawn_chunks(
     mut cmd: Commands,
     mut chunks: ResMut<Chunks>,
     mut mat: ResMut<Assets<Map>>,
-    ts: Res<Tileset>,
+    ts: Res<Tilesets>,
     cfg: Res<WorldgenConfig>,
     noise: Res<TerrainNoise>,
     cam: Query<&Transform, With<Camera>>,
@@ -228,37 +299,104 @@ fn despawn_chunks(
 }
 
 // normalize [-1, 1] to [0, 1]
-fn normal_simplex(noise: f64) -> f64 {
+fn normalize_noise(noise: f64) -> f64 {
     noise / 2. + 0.5
 }
 
-fn sand_noise(pos: IVec2, noise: &TerrainNoise, cfg: &WorldgenConfig) -> Tile {
-    let val = normal_simplex(
-        noise
-            .sand
-            .get([pos.x as f64 * cfg.sand_freq, pos.y as f64 * cfg.sand_freq]),
-    );
-
-    //let min = Tile::Sand as u32;
-    //let max = Tile::Sand3 as u32;
-    //let choice = (val * (max - min + 1) as f64 + min as f64).floor() as u32;
-    //choice.try_into().unwrap()
-    if val >= 0.6 {
-        Tile::Sand2
-    } else {
-        Tile::Sand
+impl TerrainNoise {
+    fn get_height(&self, pos: IVec2, cfg: &WorldgenConfig) -> f64 {
+        normalize_noise(
+            self.heightmap
+                .get([pos.x as f64 / cfg.wavelength, pos.y as f64 / cfg.wavelength]),
+        )
     }
-}
 
-pub fn tile_at_pos(pos: IVec2, noise: &TerrainNoise, cfg: &WorldgenConfig) -> Tile {
-    let val = normal_simplex(
-        noise
-            .altitude
-            .get([pos.x as f64 / cfg.wavelength, pos.y as f64 / cfg.wavelength]),
-    );
-    match val {
-        x if x >= cfg.land_threshhold => sand_noise(pos, noise, cfg),
-        _ => Tile::Water,
+    fn get_random(&self, pos: IVec2) -> f64 {
+        normalize_noise(self.random.get([pos.x as f64, pos.y as f64]))
+    }
+
+    pub fn tile_at_pos(&self, pos: IVec2, cfg: &WorldgenConfig) -> TerrainTile {
+        match self.biome_at_pos(pos, cfg) {
+            Biome::Ocean => TerrainTile::Water,
+            Biome::Island => self.generate_island(pos, cfg),
+        }
+    }
+
+    pub fn biome_at_pos(&self, pos: IVec2, cfg: &WorldgenConfig) -> Biome {
+        match self.get_height(pos, &cfg) {
+            x if x >= cfg.island_threshhold => Biome::Island,
+            _ => Biome::Ocean,
+        }
+    }
+
+    fn in_ocean(&self, pos: IVec2, cfg: &WorldgenConfig) -> bool {
+        matches!(self.biome_at_pos(pos, cfg), Biome::Ocean)
+    }
+
+    fn generate_island(&self, pos: IVec2, cfg: &WorldgenConfig) -> TerrainTile {
+        // generate sand variation
+        let min = TerrainTile::Sand1 as u32;
+        let max = TerrainTile::Sand2 as u32;
+        let variations = max - min + 1;
+        let r = self.get_random(pos);
+        // variant relative to first tile
+        let variant = (((variations - 1) as f64 * r).trunc() as u32).min(variations - 1);
+        let variant_edges = match variant {
+            0 => TerrainTile::IslandBorder1Bottom,
+            1 => TerrainTile::IslandBorder2Bottom,
+            _ => unreachable!()
+        } as u32;
+
+        if self.in_ocean(pos + ivec2(1, 0), cfg) && self.in_ocean(pos + ivec2(0, -1), cfg) {
+            let rel = RelativeBorderTile::IslandBorderBottom as u32;
+            return TerrainTile::try_from_primitive(variant_edges + rel).unwrap()
+        }
+        else if self.in_ocean(pos + ivec2(-1, 0), cfg) && self.in_ocean(pos + ivec2(0, -1), cfg){
+            let rel = RelativeBorderTile::IslandBorderLeft as u32;
+            return TerrainTile::try_from_primitive(variant_edges + rel).unwrap()
+        }
+        else if self.in_ocean(pos + ivec2(-1, 0), cfg) && self.in_ocean(pos + ivec2(0, 1), cfg){
+            let rel = RelativeBorderTile::IslandBorderTop as u32;
+            return TerrainTile::try_from_primitive(variant_edges + rel).unwrap()
+        }
+        else if self.in_ocean(pos + ivec2(1, 0), cfg) && self.in_ocean(pos + ivec2(0, 1), cfg){
+            let rel = RelativeBorderTile::IslandBorderRight as u32;
+            return TerrainTile::try_from_primitive(variant_edges + rel).unwrap()
+        }
+        else if self.in_ocean(pos + ivec2(1, 0), cfg) {
+            let rel = RelativeBorderTile::IslandBorderBottomRight as u32;
+            return TerrainTile::try_from_primitive(variant_edges + rel).unwrap()
+        }
+        else if self.in_ocean(pos + ivec2(-1, 0), cfg) {
+            let rel = RelativeBorderTile::IslandBorderTopLeft as u32;
+            return TerrainTile::try_from_primitive(variant_edges + rel).unwrap()
+        }
+        else if self.in_ocean(pos + ivec2(0, -1), cfg) {
+            let rel = RelativeBorderTile::IslandBorderBottomLeft as u32;
+            return TerrainTile::try_from_primitive(variant_edges + rel).unwrap()
+        }
+        else if self.in_ocean(pos + ivec2(0, 1), cfg) {
+            let rel = RelativeBorderTile::IslandBorderTopRight as u32;
+            return TerrainTile::try_from_primitive(variant_edges + rel).unwrap()
+        }
+        else if self.in_ocean(pos + ivec2(-1, -1), cfg) {
+            let rel = RelativeBorderTile::IslandBorderInnerLeft as u32;
+            return TerrainTile::try_from_primitive(variant_edges + rel).unwrap()
+        }
+        else if self.in_ocean(pos + ivec2(-1, 1), cfg) {
+            let rel = RelativeBorderTile::IslandBorderInnerTop as u32;
+            return TerrainTile::try_from_primitive(variant_edges + rel).unwrap()
+        }
+        else if self.in_ocean(pos + ivec2(1, 1), cfg) {
+            let rel = RelativeBorderTile::IslandBorderInnerRight as u32;
+            return TerrainTile::try_from_primitive(variant_edges + rel).unwrap()
+        }
+        else if self.in_ocean(pos + ivec2(1, -1), cfg) {
+            let rel = RelativeBorderTile::IslandBorderInnerBottom as u32;
+            return TerrainTile::try_from_primitive(variant_edges + rel).unwrap()
+        }
+
+        TerrainTile::try_from_primitive(min + variant).unwrap()
     }
 }
 
@@ -268,7 +406,7 @@ fn init_chunk(m: &mut MapIndexer, chunk: IVec2, noise: &TerrainNoise, cfg: &Worl
             let mut pos = IVec2::new(x as i32, y as i32);
             // global position
             pos += chunk * CHUNK_SIZE_TILES.as_ivec2();
-            m.set(x, y, tile_at_pos(pos, noise, cfg) as u32);
+            m.set(x, y, noise.tile_at_pos(pos, cfg) as u32);
         }
     }
 }
