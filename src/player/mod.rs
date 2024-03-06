@@ -1,6 +1,6 @@
 use crate::{
     controls::{PlayerShot, ShootDirection},
-    worldgen::{tile_at_pos, world2grid_tile, TerrainNoise, Tile, WorldgenConfig},
+    worldgen::{world2grid_tile, TerrainNoise, TerrainTile, WorldgenConfig},
 };
 use bevy::prelude::*;
 
@@ -9,7 +9,10 @@ pub struct PlayerPlugin;
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_player)
-            .add_systems(Update, (move_entities, shoot, update_sprite, tile_collision))
+            .add_systems(
+                Update,
+                (move_entities, shoot, update_sprite, tile_collision),
+            )
             .add_event::<SpawnLiving>();
     }
 }
@@ -183,20 +186,21 @@ fn tile_collision(
     terrain_noise: Res<TerrainNoise>,
     worldgencfg: Res<WorldgenConfig>,
     time: Res<Time>,
-    mut player: Query<(&mut Velocity, &Transform, &mut Health, &mut DamageCooldown), With<Player>>,
+    mut ships: Query<(&mut Velocity, &Transform, &mut Health, &mut DamageCooldown)>,
 ) {
-    let (mut vel, ptransform, mut hp, mut cooldown) = player.single_mut();
-    cooldown.0.tick(time.delta());
-    // Add this to kinda predict where it is gonna be in a second.
-    let world_pos = ptransform.translation.truncate() + vel.0;
-    let grid_pos = world2grid_tile(world_pos);
-    let tile = tile_at_pos(grid_pos, &terrain_noise, &worldgencfg);
-    if matches!(tile, Tile::Sand | Tile::Sand2) {
-        *vel = Velocity(Vec2::ZERO);
-        info!("collision with terrain detected");
-        if cooldown.0.just_finished() {
-            // i dunno lets do 10 for now
-            hp.health -= 10;
+    for (mut vel, ptransform, mut hp, mut cooldown) in ships.iter_mut() {
+        cooldown.0.tick(time.delta());
+        // Add this to kinda predict where it is gonna be in a second.
+        let world_pos = ptransform.translation.truncate() + vel.0;
+        let grid_pos = world2grid_tile(world_pos);
+        let tile = terrain_noise.tile_at_pos(grid_pos, &worldgencfg);
+        if matches!(tile, TerrainTile::Sand1 | TerrainTile::Sand2) {
+            *vel = Velocity(Vec2::ZERO);
+            info!("collision with terrain detected");
+            if cooldown.0.just_finished() && hp.health > 0 {
+                // i dunno lets do 10 for now
+                hp.health -= 10;
+            }
         }
     }
 }

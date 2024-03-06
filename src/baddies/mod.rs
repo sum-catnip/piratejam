@@ -5,7 +5,7 @@ use rand::thread_rng;
 
 use crate::{
     player::{DamageCooldown, Health, Size, SpawnLiving, Speed, Velocity},
-    worldgen::{tile_at_pos, world2grid_tile, TerrainNoise, Tile, WorldgenConfig},
+    worldgen::{world2grid_tile, TerrainNoise, TerrainTile, WorldgenConfig},
 };
 
 pub struct BaddiesPlugin;
@@ -31,8 +31,8 @@ pub struct BaddyBundle {
 
 impl Plugin for BaddiesPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, (spawn_baddie))
-            .add_systems(Update, (baddy_collision, avoid_islands));
+        app.add_systems(Startup, spawn_baddie)
+            .add_systems(Update, avoid_islands);
     }
 }
 
@@ -72,32 +72,6 @@ fn spawn_baddie(
     spawnevt.send(SpawnLiving(id));
 }
 
-fn baddy_collision(
-    terrain_noise: Res<TerrainNoise>,
-    worldgencfg: Res<WorldgenConfig>,
-    time: Res<Time>,
-    mut all_baddies: Query<
-        (&mut Velocity, &Transform, &mut Health, &mut DamageCooldown),
-        With<BaddyShip>,
-    >,
-) {
-    for (mut vel, btransform, mut hp, mut cooldown) in all_baddies.iter_mut() {
-        cooldown.0.tick(time.delta());
-        // Add this to kinda predict where it is gonna be in a second.
-        let world_pos = btransform.translation.truncate() + vel.0;
-        let grid_pos = world2grid_tile(world_pos);
-        let tile = tile_at_pos(grid_pos, &terrain_noise, &worldgencfg);
-        if matches!(tile, Tile::Sand | Tile::Sand2) {
-            *vel = Velocity(Vec2::ZERO);
-            info!("collision with terrain detected");
-            if cooldown.0.just_finished() {
-                // i dunno lets do 10 for now
-                hp.health -= 10;
-            }
-        }
-    }
-}
-
 /*
 I want the baddies to have some amount of AI to start.
 
@@ -125,14 +99,14 @@ fn avoid_islands(
             let world_pos = btransform.translation.truncate() + vel.0;
             let grid_pos = world2grid_tile(world_pos);
             let neighbors_grid_pos = get_neighbors(grid_pos);
-            let mut safeTiles = neighbors_grid_pos.clone();
+            let mut safe_tiles = neighbors_grid_pos.clone();
             // Retain only safe tiles
-            safeTiles.retain(|&neighbor_pos| {
-                let tile = tile_at_pos(neighbor_pos, &terrain_noise, &worldgencfg);
-                !matches!(tile, Tile::Sand | Tile::Sand2) // Keep the tile if it's not Sand or Sand2
+            safe_tiles.retain(|&neighbor_pos| {
+                let tile = terrain_noise.tile_at_pos(neighbor_pos, &worldgencfg);
+                !matches!(tile, TerrainTile::Sand1 | TerrainTile::Sand2) // Keep the tile if it's not Sand or Sand2
             });
             let mut rng = thread_rng();
-            if let Some(random_neighbor) = safeTiles.choose(&mut rng) {
+            if let Some(random_neighbor) = safe_tiles.choose(&mut rng) {
                 info!("Random Neighbor Found: {}", random_neighbor);
                 // todo: this is messing things up and making the enemy ship ZOOOOOOM
                 vel.0 = random_neighbor.as_vec2();
