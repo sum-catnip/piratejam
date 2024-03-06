@@ -1,5 +1,5 @@
 use crate::player::{Health, Size, SpawnLiving};
-use bevy::{prelude::*, utils::warn};
+use bevy::prelude::*;
 
 pub struct UIPlugin;
 impl Plugin for UIPlugin {
@@ -8,7 +8,7 @@ impl Plugin for UIPlugin {
     }
 }
 
-fn attach(mut cmd: Commands, mut spawn: EventReader<SpawnLiving>, mut hp: Query<&Health>) {
+fn attach(mut cmd: Commands, mut spawn: EventReader<SpawnLiving>, hp: Query<&Health>) {
     for e in spawn.read() {
         let Ok(hp) = hp.get(e.0) else { return };
         cmd.spawn(Text2dBundle {
