@@ -9,7 +9,7 @@ pub struct PlayerPlugin;
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_player)
-            .add_systems(Update, (move_player, shoot, update_sprite, tile_collision))
+            .add_systems(Update, (move_entities, shoot, update_sprite, tile_collision))
             .add_event::<SpawnLiving>();
     }
 }
@@ -95,8 +95,9 @@ fn spawn_player(
     spawnevt.send(SpawnLiving(id));
 }
 
-fn move_player(mut ships: Query<(&mut Transform, &Velocity, &Speed)>, time: Res<Time>) {
-    for (mut transform, velocity, speed) in &mut ships {
+fn move_entities(mut ships: Query<(&mut Transform, &Velocity, &Speed, Entity)>, time: Res<Time>) {
+    for (mut transform, velocity, speed, entity) in &mut ships {
+        info!("moving: {:?}, speed: {}", entity, speed.0);
         let movement = (velocity.0 * speed.0) * time.delta_seconds();
         if velocity.0.x < 0.0 {
             transform.scale.x = transform.scale.x.abs() * -1.;

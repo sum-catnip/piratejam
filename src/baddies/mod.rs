@@ -134,6 +134,7 @@ fn avoid_islands(
             let mut rng = thread_rng();
             if let Some(random_neighbor) = safeTiles.choose(&mut rng) {
                 info!("Random Neighbor Found: {}", random_neighbor);
+                // todo: this is messing things up and making the enemy ship ZOOOOOOM
                 vel.0 = random_neighbor.as_vec2();
             }
         }
