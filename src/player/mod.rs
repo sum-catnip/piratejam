@@ -8,11 +8,9 @@ pub struct PlayerPlugin;
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .add_systems(Startup, spawn_player)
+        app.add_systems(Startup, spawn_player)
             .add_systems(Update, (move_player, shoot, update_sprite, tile_collision))
-            .add_event::<SpawnLiving>()
-        ;
+            .add_event::<SpawnLiving>();
     }
 }
 
@@ -52,7 +50,7 @@ pub struct PlayerBundle {
     health: Health,
     dmg_cooldown: DamageCooldown,
     // this should endup in a seperate ship specific container once we have ship-hopping
-    size: Size
+    size: Size,
 }
 
 #[derive(Bundle)]
@@ -71,26 +69,28 @@ fn spawn_player(
     let tex: Handle<Image> = assets.load("boat.png");
     let layout = TextureAtlasLayout::from_grid(Vec2::new(32., 32.), 5, 1, None, None);
     let atlas_layout = layouts.add(layout);
-    let id = commands.spawn(PlayerBundle {
-        marker: Player,
-        sheet: SpriteSheetBundle {
-            texture: tex,
-            atlas: TextureAtlas {
-                layout: atlas_layout,
-                index: 1,
+    let id = commands
+        .spawn(PlayerBundle {
+            marker: Player,
+            sheet: SpriteSheetBundle {
+                texture: tex,
+                atlas: TextureAtlas {
+                    layout: atlas_layout,
+                    index: 1,
+                },
+                transform: Transform::from_xyz(0., 0., 1.),
+                ..default()
             },
-            transform: Transform::from_xyz(0., 0., 1.),
-            ..default()
-        },
-        vel: Velocity(Vec2::ZERO),
-        speed: Speed(35.),
-        health: Health {
-            health: 100,
-            max: 100,
-        },
-        dmg_cooldown: DamageCooldown(Timer::from_seconds(1., TimerMode::Repeating)),
-        size: Size(IVec2::new(32, 32))
-    }).id();
+            vel: Velocity(Vec2::ZERO),
+            speed: Speed(35.),
+            health: Health {
+                health: 100,
+                max: 100,
+            },
+            dmg_cooldown: DamageCooldown(Timer::from_seconds(1., TimerMode::Repeating)),
+            size: Size(IVec2::new(32, 32)),
+        })
+        .id();
 
     spawnevt.send(SpawnLiving(id));
 }

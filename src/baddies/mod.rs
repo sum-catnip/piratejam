@@ -3,7 +3,10 @@ use bevy::prelude::*;
 use rand::seq::SliceRandom;
 use rand::thread_rng;
 
-use crate::{player::{DamageCooldown, Health, Size, SpawnLiving, Speed, Velocity}, worldgen::{tile_at_pos, world2grid_tile, TerrainNoise, Tile, WorldgenConfig}};
+use crate::{
+    player::{DamageCooldown, Health, Size, SpawnLiving, Speed, Velocity},
+    worldgen::{tile_at_pos, world2grid_tile, TerrainNoise, Tile, WorldgenConfig},
+};
 
 pub struct BaddiesPlugin;
 
@@ -23,7 +26,7 @@ pub struct BaddyBundle {
     dmg_cooldown: DamageCooldown,
     nav_cooldown: NavigationCooldown,
     // this should endup in a seperate ship specific container once we have ship-hopping
-    size: Size
+    size: Size,
 }
 
 impl Plugin for BaddiesPlugin {
@@ -42,27 +45,29 @@ fn spawn_baddie(
     let tex: Handle<Image> = assets.load("ship1.png");
     let layout = TextureAtlasLayout::from_grid(Vec2::new(80., 60.), 5, 1, None, None);
     let atlas_layout = layouts.add(layout);
-    let id = commands.spawn(BaddyBundle {
-        marker: BaddyShip,
-        sheet: SpriteSheetBundle {
-            texture: tex,
-            atlas: TextureAtlas {
-                layout: atlas_layout,
-                index: 1,
+    let id = commands
+        .spawn(BaddyBundle {
+            marker: BaddyShip,
+            sheet: SpriteSheetBundle {
+                texture: tex,
+                atlas: TextureAtlas {
+                    layout: atlas_layout,
+                    index: 1,
+                },
+                transform: Transform::from_xyz(100., 0., 1.),
+                ..default()
             },
-            transform: Transform::from_xyz(100., 0., 1.),
-            ..default()
-        },
-        vel: Velocity(Vec2::new(10., 10.)),
-        speed: Speed(5.),
-        health: Health {
-            health: 100,
-            max: 100,
-        },
-        dmg_cooldown: DamageCooldown(Timer::from_seconds(1., TimerMode::Repeating)),
-        nav_cooldown: NavigationCooldown(Timer::from_seconds(1., TimerMode::Repeating)),
-        size: Size(IVec2::new(80, 60))
-    }).id();
+            vel: Velocity(Vec2::new(10., 10.)),
+            speed: Speed(5.),
+            health: Health {
+                health: 100,
+                max: 100,
+            },
+            dmg_cooldown: DamageCooldown(Timer::from_seconds(1., TimerMode::Repeating)),
+            nav_cooldown: NavigationCooldown(Timer::from_seconds(1., TimerMode::Repeating)),
+            size: Size(IVec2::new(80, 60)),
+        })
+        .id();
 
     spawnevt.send(SpawnLiving(id));
 }
@@ -71,7 +76,10 @@ fn baddy_collision(
     terrain_noise: Res<TerrainNoise>,
     worldgencfg: Res<WorldgenConfig>,
     time: Res<Time>,
-    mut all_baddies: Query<(&mut Velocity, &Transform, &mut Health, &mut DamageCooldown), With<BaddyShip>>,
+    mut all_baddies: Query<
+        (&mut Velocity, &Transform, &mut Health, &mut DamageCooldown),
+        With<BaddyShip>,
+    >,
 ) {
     for (mut vel, btransform, mut hp, mut cooldown) in all_baddies.iter_mut() {
         cooldown.0.tick(time.delta());
@@ -133,8 +141,8 @@ fn avoid_islands(
 }
 
 fn get_neighbors(grid_pos: IVec2) -> Vec<IVec2> {
-    let grid_size = 6;  // The grid size around the center to return
-    let mut neighbors: Vec::<IVec2> = Vec::new();
+    let grid_size = 6; // The grid size around the center to return
+    let mut neighbors: Vec<IVec2> = Vec::new();
     let tilesize = IVec2::new(40, 20);
     let half_grid_size = grid_size / 2;
 
@@ -152,4 +160,3 @@ fn get_neighbors(grid_pos: IVec2) -> Vec<IVec2> {
     }
     return neighbors;
 }
-

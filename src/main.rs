@@ -27,7 +27,14 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(ImagePlugin::default_nearest()))
         .insert_resource(Msaa::Off)
-        .add_plugins((WorldGenPlugin, PlayerPlugin, GamepadPlugin, ControlsPlugin, UIPlugin, BaddiesPlugin))
+        .add_plugins((
+            WorldGenPlugin,
+            PlayerPlugin,
+            GamepadPlugin,
+            ControlsPlugin,
+            UIPlugin,
+            BaddiesPlugin,
+        ))
         .add_systems(Startup, setup)
         .add_systems(Update, camera)
         .run();

@@ -32,7 +32,7 @@ pub enum Tile {
     Sand = 0,
     Sand2 = 1,
     #[default]
-    Water = 2
+    Water = 2,
 }
 
 #[derive(Resource)]
