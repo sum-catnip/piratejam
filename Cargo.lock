@@ -3044,6 +3044,7 @@ dependencies = [
  "noise",
  "num_enum",
  "rand 0.8.5",
+ "serde",
 ]
 
 [[package]]
