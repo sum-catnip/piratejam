@@ -1,0 +1,6 @@
+TileAssembly(
+  origin: 15,
+  tiles: [
+    ((0,0), 0)
+  ]
+)

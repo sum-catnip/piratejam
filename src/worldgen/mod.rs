@@ -2,13 +2,17 @@ use std::collections::HashMap;
 use std::num::Wrapping as wrap;
 
 use bevy::{
+    asset::Asset,
     math::{ivec2, vec2},
     prelude::*,
+    reflect::TypePath,
 };
+use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_fast_tilemap::{FastTileMapPlugin, Map, MapBundleManaged, MapIndexer, AXONOMETRIC};
 use bevy_inspector_egui::{prelude::*, quick::ResourceInspectorPlugin};
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
+use serde::Deserialize;
 
 use noise::{NoiseFn, Simplex, SuperSimplex, Value};
 
@@ -22,6 +26,7 @@ impl Plugin for WorldGenPlugin {
             .register_type::<WorldgenConfig>()
             .init_resource::<MapgridDebug>()
             .register_type::<MapgridDebug>()
+            .add_plugins(RonAssetPlugin::<TileAssembly>::new(&["tile.ron"]))
             .add_plugins(ResourceInspectorPlugin::<WorldgenConfig>::default())
             .add_plugins(ResourceInspectorPlugin::<MapgridDebug>::default())
             .add_systems(Update, (spawn_chunks, despawn_chunks))
@@ -30,26 +35,42 @@ impl Plugin for WorldGenPlugin {
     }
 }
 
+#[derive(serde::Deserialize, Asset, TypePath)]
 pub struct TileAssembly {
+    // origin tile
+    origin: u32,
     /// maps tile position relative to origin
     /// onto tile index relative to first tile
-    tiles: Vec<(IVec2, u32)>
+    tiles: Vec<(IVec2, u32)>,
 }
 
-#[derive(Resource)]
-pub struct TerrainFeatures {
-    palm: TileAssembly,
-    stone: TileAssembly,
-    pebble: TileAssembly
+#[repr(u32)]
+pub enum Feature {
+    // the ids must line up with the tile origins
+    Palm(Handle<TileAssembly>) = 1,
+    Stone(Handle<TileAssembly>) = 8,
+    Pebble(Handle<TileAssembly>) = 11,
 }
 
 #[repr(u32)]
 #[derive(Default, Reflect, IntoPrimitive, TryFromPrimitive)]
 pub enum FeatureTile {
     #[default]
-    PalmOrigin = 0,
-    StoneOrigin = 7,
-    PebbleOrigin = 10,
+    Empty = 0,
+    PalmOrigin = 1,
+    Palm1 = 2,
+    Palm2 = 3,
+    Palm3 = 4,
+    Palm4 = 5,
+    Palm5 = 6,
+    Palm6 = 7,
+    Palm7 = 8,
+    Palm8 = 9,
+    Palm9 = 10,
+    StoneOrigin = 11,
+    Stone1 = 12,
+    Stone2 = 13,
+    PebbleOrigin = 14,
 }
 
 // art department:
@@ -120,6 +141,13 @@ struct Tilesets {
 }
 
 #[derive(Resource)]
+struct Features {
+    palm: Handle<TileAssembly>,
+    stone: Handle<TileAssembly>,
+    pebble: Handle<TileAssembly>,
+}
+
+#[derive(Resource)]
 pub struct TerrainNoise {
     heightmap: SuperSimplex,
     scatter: Value,
@@ -134,10 +162,12 @@ struct Chunk;
 pub struct WorldgenConfig {
     render_dist: u32,
     wavelength: f64,
+    scatter_freq: f64,
     island_threshhold: f64,
     sand_freq: f64,
     palm_threshhold: f64,
     stone_threshhold: f64,
+    pebble_threshhold: f64,
 }
 
 #[derive(Reflect, Resource, Default, InspectorOptions)]
@@ -166,19 +196,31 @@ fn setup(mut cmd: Commands, assets: Res<AssetServer>) {
     let terrain = assets.load("terrain.png");
     let features = assets.load("features.png");
     let debug = assets.load("iso.png");
+
+    let palm = assets.load("palm.tile.ron");
+    let stone = assets.load("stone.tile.ron");
+    let pebble = assets.load("pebble.tile.ron");
+
     cmd.insert_resource(Tilesets {
         terrain,
         features,
         debug,
     });
+    cmd.insert_resource(Features {
+        palm,
+        stone,
+        pebble,
+    });
 
     cmd.insert_resource(WorldgenConfig {
         render_dist: 5,
         wavelength: 200.,
+        scatter_freq: 100.,
         island_threshhold: 0.9,
         sand_freq: 10000.,
         stone_threshhold: 0.7,
         palm_threshhold: 0.7,
+        pebble_threshhold: 0.6,
     });
 
     cmd.insert_resource(TerrainNoise {
@@ -243,6 +285,8 @@ fn spawn_chunk(
     ts: &Tilesets,
     cfg: &WorldgenConfig,
     noise: &TerrainNoise,
+    feature_handles: &Features,
+    features: &Assets<TileAssembly>,
     chunkpos: IVec2,
 ) -> Entity {
     let pos = grid2world_chunk(chunkpos);
@@ -250,6 +294,19 @@ fn spawn_chunk(
         .with_projection(AXONOMETRIC)
         .build_and_initialize(|index| init_chunk_terrain(index, chunkpos, noise, cfg));
 
+    let chunk_features = Map::builder(CHUNK_SIZE_TILES, ts.features.clone(), TILE_SIZE)
+        .with_projection(AXONOMETRIC)
+        .build_and_initialize(|i| {
+            init_chunk_features(i, chunkpos, noise, cfg, feature_handles, features)
+        });
+
+    _ = cmd
+        .spawn(MapBundleManaged::new(chunk_features, mat))
+        .insert(Transform {
+            translation: Vec3::new(pos.x, pos.y, -90.),
+            ..default()
+        })
+        .id();
     /*
     let chunk_debug = Map::builder(CHUNK_SIZE_TILES, ts.debug.clone(), TILE_SIZE)
         .with_projection(AXONOMETRIC)
@@ -278,6 +335,8 @@ fn spawn_chunks(
     ts: Res<Tilesets>,
     cfg: Res<WorldgenConfig>,
     noise: Res<TerrainNoise>,
+    feature_handles: Res<Features>,
+    features: Res<Assets<TileAssembly>>,
     cam: Query<&Transform, With<Camera>>,
 ) {
     let transform = cam.single();
@@ -296,6 +355,8 @@ fn spawn_chunks(
                         ts.as_ref(),
                         cfg.as_ref(),
                         noise.as_ref(),
+                        feature_handles.as_ref(),
+                        features.as_ref(),
                         vec,
                     ),
                 );
@@ -356,11 +417,15 @@ impl TerrainNoise {
         )
     }
 
+    fn get_scatter(&self, pos: IVec2, cfg: &WorldgenConfig) -> f64 {
+        normalize_noise(self.scatter.get([
+            pos.x as f64 * cfg.scatter_freq,
+            pos.y as f64 * cfg.scatter_freq,
+        ]))
+    }
+
     fn get_random(&self, pos: IVec2) -> f64 {
-        let r = cash_rng(pos.x, pos.y);
-        let f = r as f64 / i32::MAX as f64;
-        debug!("r: {}, f: {}", r, f);
-        f
+        cash_rng(pos.x, pos.y) as f64 / i32::MAX as f64
     }
 
     pub fn tile_at_pos(&self, pos: IVec2, cfg: &WorldgenConfig) -> TerrainTile {
@@ -370,10 +435,51 @@ impl TerrainNoise {
         }
     }
 
-    pub fn feature_at_pos(&self, pos: IVec2, cfg: &WorldgenConfig) -> TerrainTile {
+    fn gen_ocean_feature(
+        &self,
+        pos: IVec2,
+        cfg: &WorldgenConfig,
+        features: &Features,
+    ) -> Option<Handle<TileAssembly>> {
+        let v = self.get_scatter(pos, cfg);
+        if v > cfg.stone_threshhold {
+            Some(features.stone.clone())
+        } else if v > cfg.pebble_threshhold {
+            Some(features.pebble.clone())
+        } else {
+            None
+        }
+    }
+
+    fn gen_island_feature(
+        &self,
+        pos: IVec2,
+        cfg: &WorldgenConfig,
+        features: &Features,
+    ) -> Option<Handle<TileAssembly>> {
+        // only generate on sand1 and sand2
+        // not the border tiles
+        if ! matches!(self.tile_at_pos(pos, cfg), TerrainTile::Sand1 | TerrainTile::Sand2) {
+            return None;
+        }
+
+        let v = self.get_scatter(pos, cfg);
+        if v > cfg.palm_threshhold {
+            Some(features.palm.clone())
+        } else {
+            None
+        }
+    }
+
+    fn feature_at_pos(
+        &self,
+        pos: IVec2,
+        cfg: &WorldgenConfig,
+        features: &Features,
+    ) -> Option<Handle<TileAssembly>> {
         match self.biome_at_pos(pos, cfg) {
-            Biome::Ocean => TerrainTile::Water,
-            Biome::Island => self.generate_island(pos, cfg),
+            Biome::Ocean => self.gen_ocean_feature(pos, cfg, features),
+            Biome::Island => self.gen_island_feature(pos, cfg, features),
         }
     }
 
@@ -404,6 +510,9 @@ impl TerrainNoise {
             _ => unreachable!(),
         } as u32;
 
+        // note that this could be optimized in the future:
+        // check all 8 tiles, for ocean, turn it into a bitmap of 8 bits (true or false),
+        // interpret the bitmap as a byte and map each byte value onto a bordertile
         TerrainTile::try_from_primitive(
             if self.in_ocean(pos + ivec2(1, 0), cfg) && self.in_ocean(pos + ivec2(0, -1), cfg) {
                 variant_edges + RelativeBorderTile::IslandBorderBottom as u32
@@ -442,7 +551,57 @@ impl TerrainNoise {
     }
 }
 
-fn init_chunk_terrain(m: &mut MapIndexer, chunk: IVec2, noise: &TerrainNoise, cfg: &WorldgenConfig) {
+fn init_chunk_features(
+    m: &mut MapIndexer,
+    chunk: IVec2,
+    noise: &TerrainNoise,
+    cfg: &WorldgenConfig,
+    feature_handles: &Features,
+    features: &Assets<TileAssembly>,
+) {
+    for y in 0..m.size().y {
+        for x in 0..m.size().x {
+            // get global position
+            let chunkpos = IVec2::new(x as i32, y as i32);
+            let globalpos = chunkpos + chunk * CHUNK_SIZE_TILES.as_ivec2();
+
+            let Some(asm_handle) = noise.feature_at_pos(globalpos, cfg, feature_handles) else {
+                continue;
+            };
+
+            let Some(asm) = features.get(asm_handle.id()) else {
+                debug!("feature tile: {:?} missing (not loaded)", &asm_handle);
+                continue;
+            };
+
+            // check if there is space for the feature
+            let has_space = asm.tiles.iter().map(|(p, _)| chunkpos + *p).all(|p| {
+                p.x >= 0
+                    && p.y >= 0
+                    && (p.x as u32) < m.size().x
+                    && (p.y as u32) < m.size().y
+                    && m.at_ivec(p) == 0
+            });
+            if !has_space {
+                debug!("feature generation failed, not enough space");
+                continue;
+            }
+
+            // place feature
+            for (rel_pos, rel_id) in asm.tiles.iter() {
+                let p = chunkpos + *rel_pos;
+                m.set(p.x as u32, p.y as u32, asm.origin + rel_id)
+            }
+        }
+    }
+}
+
+fn init_chunk_terrain(
+    m: &mut MapIndexer,
+    chunk: IVec2,
+    noise: &TerrainNoise,
+    cfg: &WorldgenConfig,
+) {
     for y in 0..m.size().y {
         for x in 0..m.size().x {
             let mut pos = IVec2::new(x as i32, y as i32);
