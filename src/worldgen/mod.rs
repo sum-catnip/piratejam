@@ -155,6 +155,9 @@ pub struct TerrainNoise {
 }
 
 #[derive(Component)]
+struct ChunkLayers(Vec<Entity>);
+
+#[derive(Component)]
 struct Chunk;
 
 #[derive(Reflect, Resource, Default, InspectorOptions)]
@@ -300,7 +303,7 @@ fn spawn_chunk(
             init_chunk_features(i, chunkpos, noise, cfg, feature_handles, features)
         });
 
-    _ = cmd
+    let feature_e = cmd
         .spawn(MapBundleManaged::new(chunk_features, mat))
         .insert(Transform {
             translation: Vec3::new(pos.x, pos.y, -90.),
@@ -321,6 +324,7 @@ fn spawn_chunk(
     */
     cmd.spawn(MapBundleManaged::new(chunk_terrain, mat))
         .insert(Chunk)
+        .insert(ChunkLayers(vec![feature_e]))
         .insert(Transform {
             translation: Vec3::new(pos.x, pos.y, -100.),
             ..default()
@@ -373,13 +377,13 @@ fn manhatten_dist(a: IVec2, b: IVec2) -> u32 {
 fn despawn_chunks(
     mut cmd: Commands,
     mut chunks: ResMut<Chunks>,
-    maps: Query<&Transform, With<Chunk>>,
+    maps: Query<(&Transform, &mut ChunkLayers), With<Chunk>>,
     cfg: Res<WorldgenConfig>,
     cam: Query<&Transform, With<Camera>>,
 ) {
     let cam_transform = cam.single();
     let render_dist = cfg.render_dist;
-    for chunk_transform in maps.iter() {
+    for (chunk_transform, layers) in maps.iter() {
         let chunkpos_cam = world2grid_chunk(cam_transform.translation.xy());
         let chunkpos_chunk = world2grid_chunk(chunk_transform.translation.xy());
         let dist = manhatten_dist(chunkpos_cam, chunkpos_chunk);
@@ -389,6 +393,9 @@ fn despawn_chunks(
                 .remove(&chunkpos_chunk)
                 .expect("tried to despawn nonexistant chunk");
             cmd.entity(e).despawn_recursive();
+            for e in &layers.0 {
+                cmd.entity(*e).despawn_recursive();
+            }
         }
     }
 }
