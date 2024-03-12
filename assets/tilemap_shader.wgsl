@@ -100,10 +100,13 @@ fn vertex(v: Vertex) -> VertexOutput {
 
     //out.world_position.y = sin(globals.time + f32(pos.tile.x) + f32(pos.tile.y));
     //out.position = mesh2d_position_world_to_clip(out.world_position);
-    if (pos.tile.x % 2 == 0) {
-        out.world_position.y *= sin(globals.time);
-        out.position = mesh2d_position_world_to_clip(out.world_position);
-    }
+    //if pos.tile.x % 2 == 0 {
+    //    //out.world_position.x *= sin(globals.time);
+    //    //out.world_position.y *= sin(globals.time);
+    //    out.world_position.y *= sin(globals.time);
+    //    out.position = mesh2d_position_world_to_clip(out.world_position);
+    //    out.mix_color = vec4<f32>(f32(pos.tile.x), f32(pos.tile.y), 0.0, 1.0);
+    //}
     //out.mix_color = vec4<f32>(f32(pos.tile.x), f32(pos.tile.y), 0.0, 1.0);
 
     return out;
@@ -127,10 +130,7 @@ fn map_to_world(map: Map, map_position: vec2<f32>) -> vec3<f32> {
     // - scale according to `map.tile_size`
     // - Adjust for `map.world_offset` (where in the mesh tile 0,0 should be)
     // - Apply global transform
-    return map.global_transform_matrix * (
-        (map.projection * vec3<f32>(map_position, 0.0)) * vec3<f32>(map.tile_size, 1.0) +
-        vec3<f32>(map.world_offset, 0.0)
-    ) + map.global_transform_translation;
+    return map.global_transform_matrix * ((map.projection * vec3<f32>(map_position, 0.0)) * vec3<f32>(map.tile_size, 1.0) + vec3<f32>(map.world_offset, 0.0)) + map.global_transform_translation;
 }
 
 /// Position (world/pixel units) in tilemap atlas of the top left corner
@@ -186,11 +186,7 @@ fn sample_tile(
 
     // Outside of "our" part of the padding, dont render anything as part of this tile,
     // as it might be used for overhang of a neighbouring tile in the tilemap
-    if rect_offset.x < -max_overhang.x
-        || rect_offset.y < -max_overhang.y
-        || rect_offset.x > (map.tile_size.x + max_overhang.x)
-        || rect_offset.y > (map.tile_size.y + max_overhang.y)
-    {
+    if rect_offset.x < -max_overhang.x || rect_offset.y < -max_overhang.y || rect_offset.x > (map.tile_size.x + max_overhang.x) || rect_offset.y > (map.tile_size.y + max_overhang.y) {
         return vec4<f32>(0.0, 0.0, 0.0, 0.0);
     }
     //var color = textureSample(
@@ -314,15 +310,15 @@ fn render_dominance_overhangs(color: vec4<f32>, index: u32, pos: MapPosition) ->
 
         // first render all the diagonal overhangs
         c = blend(c, sample_neighbor_if_ge(idx, pos, vec2<i32>(-1, -1)));
-        c = blend(c, sample_neighbor_if_ge(idx, pos, vec2<i32>(-1,  1)));
-        c = blend(c, sample_neighbor_if_ge(idx, pos, vec2<i32>( 1, -1)));
-        c = blend(c, sample_neighbor_if_ge(idx, pos, vec2<i32>( 1,  1)));
+        c = blend(c, sample_neighbor_if_ge(idx, pos, vec2<i32>(-1, 1)));
+        c = blend(c, sample_neighbor_if_ge(idx, pos, vec2<i32>(1, -1)));
+        c = blend(c, sample_neighbor_if_ge(idx, pos, vec2<i32>(1, 1)));
 
         // Now all the orthogonal ones
-        c = blend(c, sample_neighbor_if_ge(idx, pos, vec2<i32>(-1,  0)));
-        c = blend(c, sample_neighbor_if_ge(idx, pos, vec2<i32>( 1,  0)));
-        c = blend(c, sample_neighbor_if_ge(idx, pos, vec2<i32>( 0, -1)));
-        c = blend(c, sample_neighbor_if_ge(idx, pos, vec2<i32>( 0,  1)));
+        c = blend(c, sample_neighbor_if_ge(idx, pos, vec2<i32>(-1, 0)));
+        c = blend(c, sample_neighbor_if_ge(idx, pos, vec2<i32>(1, 0)));
+        c = blend(c, sample_neighbor_if_ge(idx, pos, vec2<i32>(0, -1)));
+        c = blend(c, sample_neighbor_if_ge(idx, pos, vec2<i32>(0, 1)));
 
         idx++;
     }
@@ -342,35 +338,35 @@ fn render_perspective_underhangs(color: vec4<f32>, pos: MapPosition) -> vec4<f32
     // P: Positive (1)
     // Z: Zero (0)
     #ifdef PERSPECTIVE_UNDER_NN
-        c = blend(c, sample_neighbor(pos, vec2<i32>( -1, -1)));
+    c = blend(c, sample_neighbor(pos, vec2<i32>(-1, -1)));
     #endif
 
     #ifdef PERSPECTIVE_UNDER_NP
-        c = blend(c, sample_neighbor(pos, vec2<i32>( -1,  1)));
+    c = blend(c, sample_neighbor(pos, vec2<i32>(-1, 1)));
     #endif
 
     #ifdef PERSPECTIVE_UNDER_PN
-        c = blend(c, sample_neighbor(pos, vec2<i32>(  1, -1)));
+    c = blend(c, sample_neighbor(pos, vec2<i32>(1, -1)));
     #endif
 
     #ifdef PERSPECTIVE_UNDER_PP
-        c = blend(c, sample_neighbor(pos, vec2<i32>(  1,  1)));
+    c = blend(c, sample_neighbor(pos, vec2<i32>(1, 1)));
     #endif
 
     #ifdef PERSPECTIVE_UNDER_ZN
-        c = blend(c, sample_neighbor(pos, vec2<i32>(  0, -1)));
+    c = blend(c, sample_neighbor(pos, vec2<i32>(0, -1)));
     #endif
 
     #ifdef PERSPECTIVE_UNDER_NZ
-        c = blend(c, sample_neighbor(pos, vec2<i32>( -1,  0)));
+    c = blend(c, sample_neighbor(pos, vec2<i32>(-1, 0)));
     #endif
 
     #ifdef PERSPECTIVE_UNDER_ZP
-        c = blend(c, sample_neighbor(pos, vec2<i32>(  0,  1)));
+    c = blend(c, sample_neighbor(pos, vec2<i32>(0, 1)));
     #endif
 
     #ifdef PERSPECTIVE_UNDER_PZ
-        c = blend(c, sample_neighbor(pos, vec2<i32>(  1,  0)));
+    c = blend(c, sample_neighbor(pos, vec2<i32>(1, 0)));
     #endif
 
     return c;
@@ -381,35 +377,35 @@ fn render_perspective_overhangs(color: vec4<f32>, pos: MapPosition) -> vec4<f32>
     var c = color;
 
     #ifdef PERSPECTIVE_UNDER_ZN
-        c = blend(c, sample_neighbor(pos, vec2<i32>(  0,  1)));
+    c = blend(c, sample_neighbor(pos, vec2<i32>(0, 1)));
     #endif
 
     #ifdef PERSPECTIVE_UNDER_NZ
-        c = blend(c, sample_neighbor(pos, vec2<i32>(  1,  0)));
+    c = blend(c, sample_neighbor(pos, vec2<i32>(1, 0)));
     #endif
 
     #ifdef PERSPECTIVE_UNDER_ZP
-        c = blend(c, sample_neighbor(pos, vec2<i32>(  0, -1)));
+    c = blend(c, sample_neighbor(pos, vec2<i32>(0, -1)));
     #endif
 
     #ifdef PERSPECTIVE_UNDER_PZ
-        c = blend(c, sample_neighbor(pos, vec2<i32>( -1,  0)));
+    c = blend(c, sample_neighbor(pos, vec2<i32>(-1, 0)));
     #endif
 
     #ifdef PERSPECTIVE_UNDER_NN
-        c = blend(c, sample_neighbor(pos, vec2<i32>(  1,  1)));
+    c = blend(c, sample_neighbor(pos, vec2<i32>(1, 1)));
     #endif
 
     #ifdef PERSPECTIVE_UNDER_NP
-        c = blend(c, sample_neighbor(pos, vec2<i32>(  1, -1)));
+    c = blend(c, sample_neighbor(pos, vec2<i32>(1, -1)));
     #endif
 
     #ifdef PERSPECTIVE_UNDER_PN
-        c = blend(c, sample_neighbor(pos, vec2<i32>( -1,  1)));
+    c = blend(c, sample_neighbor(pos, vec2<i32>(-1, 1)));
     #endif
 
     #ifdef PERSPECTIVE_UNDER_PP
-        c = blend(c, sample_neighbor(pos, vec2<i32>( -1, -1)));
+    c = blend(c, sample_neighbor(pos, vec2<i32>(-1, -1)));
     #endif
 
     return c;
@@ -423,6 +419,96 @@ fn desaturate(color: vec4<f32>, amount: f32) -> vec4<f32> {
     return mix(color, gray, amnt);
 }
 
+fn mod289v3f(x: vec3f)     -> vec3f { return x - floor(x / 289.0) * 289.0; }
+fn mod289v2f(x: vec2f)     -> vec2f { return x - floor(x / 289.0) * 289.0; }
+fn mod7v3f(x: vec3f)       -> vec3f { return x - floor(x / 6.999999) * 6.999999; }
+fn permute289v3f(x: vec3f) -> vec3f { return mod289v3f((34.0 * x + 10.0) * x); }
+
+fn cellular2D(P: vec2f) -> vec2f {
+    let K = 0.142857142857;
+    let Ko = 0.428571428571;
+    let jitter = 1.0;
+    let Pi = mod289v2f(floor(P));
+    let Pf = fract(P);
+    let Oi = vec3f(-1.0, 0.0, 1.0);
+    let Of = vec3f(-0.5, 0.5, 1.5);
+    let px = permute289v3f(Pi.x + Oi);
+    var p  = permute289v3f(px.x + Pi.y + Oi);
+    var ox = vec3f(fract(p*K) - Ko);
+    var oy = mod7v3f(floor(p*K))*K - Ko;
+    var dx = vec3f(Pf.x + 0.5 + jitter*ox);
+    var dy = vec3f(Pf.y - Of + jitter*oy);
+    var d1 = vec3f(dx * dx + dy * dy);
+    p = permute289v3f(px.y + Pi.y + Oi);
+    ox = fract(p*K) - Ko;
+    oy = mod7v3f(floor(p*K))*K - Ko;
+    dx = Pf.x - 0.5 + jitter*ox;
+    dy = Pf.y - Of + jitter*oy;
+    var d2 = vec3f(dx * dx + dy * dy);
+    p = permute289v3f(px.z + Pi.y + Oi);
+    ox = fract(p*K) - Ko;
+    oy = mod7v3f(floor(p*K))*K - Ko;
+    dx = Pf.x - 1.5 + jitter*ox;
+    dy = Pf.y - Of + jitter*oy;
+    let d3 = vec3f(dx * dx + dy * dy);
+    let d1a = min(d1, d2);
+    d2 = max(d1, d2);
+    d2 = min(d2, d3);
+    d1 = min(d1a, d2);
+    d2 = max(d1a, d2);
+    d1 = select(d1.yxz, d1, (d1.x < d1.y));
+    d1 = select(d1.zyx, d1, (d1.x < d1.z));
+    d1 = vec3f( d1.x, min(d1.yz, d2.yz) );
+    d1 = vec3f( d1.x, min(d1.y, d1.z), d1.z );
+    d1 = vec3f( d1.x, min(d1.y, d2.x), d1.z );
+    return sqrt(d1.xy);
+}
+
+fn random2(p: vec2f) -> vec2f {
+    return fract(sin(vec2f(dot(p, vec2f(127.1, 331.7)), dot(p, vec2f(269.5, 183.3))))*43758.5453);
+}
+
+fn voronoi(p: vec2f) -> vec3f {
+    let n = floor(p);
+    let f = fract(p);
+
+    // first pass: regular voronoi
+    var mg: vec2f;
+    var mr: vec2f;
+    var md = 8.;
+    for (var j = -1; j <= 1; j++) {
+        for (var i = -1; i <= 1; i++) {
+            let g = vec2f(f32(i), f32(j));
+            var o = random2(n + g);
+            o = 0.5 + 0.5 * sin(globals.time + 6.2832 * o);
+
+            let r = g + o - f;
+            let d = dot(r, r);
+            if (d < md) {
+                md = d;
+                mr = r;
+                mg = g;
+            }
+        }
+    }
+
+    // second pass: distance to borders
+    md = 8.;
+    for (var j = -2; j <= 2; j++) {
+        for (var i = -2; i <= 2; i++) {
+            let g = mg + vec2f(f32(i), f32(j));
+            var o = random2(n + g);
+            o = 0.5 + 0.5 * sin(globals.time + 6.2832 * o);
+
+            let r = g + o - f;
+            if (dot(mr - r, mr - r) > 0.00001) {
+                md = min(md, dot(0.5 * (mr + r), normalize(r - mr)));
+            }
+        }
+    }
+
+    return vec3f(md, mr);
+}
 
 @fragment
 fn fragment(
@@ -435,25 +521,45 @@ fn fragment(
 
     var sample_color = sample_tile(map, index, pos.offset);
 
-    #ifdef PERSPECTIVE_UNDERHANGS
-    if sample_color.a < 1.0 {
-        color = render_perspective_underhangs(color, pos);
-    }
-    #endif // PERSPECTIVE_UNDERHANGS
+    //#ifdef PERSPECTIVE_UNDERHANGS
+    //if sample_color.a < 1.0 {
+    //    color = render_perspective_underhangs(color, pos);
+    //}
+    //#endif // PERSPECTIVE_UNDERHANGS
 
     if is_valid_tile(map, pos.tile) {
         color = blend(color, sample_color);
+        //var F = cellular2D(world_position / 100.);
+        //var facets = 0.1 + (F.y - F.x);
+        ////var dots = smoothstep(0.05, 0.1, F.x);
+        //var n = facets;
+        //color = vec4f(n, n, n, 1.);
+
     }
 
-    #ifdef DOMINANCE_OVERHANGS
-        color = render_dominance_overhangs(color, index, pos);
-    #endif
+    let c = voronoi(world_position / 20.);
+    var color3 = vec3f(0.);
+    // isolines
+    color3 = (1. - c.x) * vec3f(1.);
 
-    #ifdef PERSPECTIVE_OVERHANGS
-        color = render_perspective_overhangs(color, pos);
-    #endif
+    // borders
+    color3 = mix(vec3f(1.), color3, smoothstep(0.01, 0.02, c.x));
+    // points
+    //let dd = length(c.yz);
+    //color3 += vec3f(1.) * (1. - smoothstep(0., 0.04, dd));
+    color *= vec4(color3, 1.);
+    //color.r = 0.;
+    //color.g = 0.;
+    //color.b = 0.;
+    //color.a *= 1.;
 
-    color = color * in.mix_color;
+    //#ifdef DOMINANCE_OVERHANGS
+    //color = render_dominance_overhangs(color, index, pos);
+    //#endif
+
+    //#ifdef PERSPECTIVE_OVERHANGS
+    //color = render_perspective_overhangs(color, pos);
+    //#endif
 
     return color;
 }
