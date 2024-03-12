@@ -28,8 +28,8 @@ impl Plugin for WorldGenPlugin {
             .add_plugins(RonAssetPlugin::<TileAssembly>::new(&["tile.ron"]))
             .add_plugins(ResourceInspectorPlugin::<WorldgenConfig>::default())
             .add_plugins(ResourceInspectorPlugin::<MapgridDebug>::default())
-            //.add_systems(Update, (spawn_chunks, despawn_chunks))
-            .add_systems(Startup, spawn_test_chunk.after(setup))
+            .add_systems(Update, (spawn_chunks, despawn_chunks))
+            //.add_systems(Startup, spawn_test_chunk.after(setup))
             .add_systems(Update, debug_view);
     }
 }
@@ -326,6 +326,25 @@ fn spawn_test_chunk(
     let transform = cam.single();
     let chunkpos = world2grid_chunk(transform.translation.xy());
     let vec = IVec2::new(0, 0);
+    if !chunks.0.contains_key(&vec) {
+        debug!("spawning chunk @ {}, curr: {}", vec, chunkpos);
+        chunks.0.insert(
+            vec,
+            spawn_chunk(
+                &mut cmd,
+                mat.as_mut(),
+                ts.as_ref(),
+                cfg.as_ref(),
+                noise.as_ref(),
+                feature_handles.as_ref(),
+                features.as_ref(),
+                chunkmesh.as_ref(),
+                vec,
+            ),
+        );
+    }
+
+    let vec = IVec2::new(1, 0);
     if !chunks.0.contains_key(&vec) {
         debug!("spawning chunk @ {}, curr: {}", vec, chunkpos);
         chunks.0.insert(
