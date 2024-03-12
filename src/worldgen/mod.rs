@@ -1,14 +1,13 @@
 use std::collections::HashMap;
 use std::num::Wrapping as wrap;
 
+use crate::bevy_fast_tilemap::{
+    FastTileMapPlugin, Map, MapBundleManaged, MapBundleUnmanaged, MapIndexer, AXONOMETRIC,
+};
 use bevy::{
-    asset::Asset,
-    math::{ivec2, vec2},
-    prelude::*,
-    reflect::TypePath,
+    asset::Asset, math::{ivec2, vec2}, prelude::*, reflect::TypePath, render::{mesh::Indices, render_asset::RenderAssetUsages, render_resource::PrimitiveTopology}, sprite::Mesh2dHandle
 };
 use bevy_common_assets::ron::RonAssetPlugin;
-use bevy_fast_tilemap::{FastTileMapPlugin, Map, MapBundleManaged, MapIndexer, AXONOMETRIC};
 use bevy_inspector_egui::{prelude::*, quick::ResourceInspectorPlugin};
 
 use num_enum::{IntoPrimitive, TryFromPrimitive};
@@ -29,8 +28,8 @@ impl Plugin for WorldGenPlugin {
             .add_plugins(RonAssetPlugin::<TileAssembly>::new(&["tile.ron"]))
             .add_plugins(ResourceInspectorPlugin::<WorldgenConfig>::default())
             .add_plugins(ResourceInspectorPlugin::<MapgridDebug>::default())
-            .add_systems(Update, (spawn_chunks, despawn_chunks))
-            //.add_systems(Startup, spawn_test_chunk.after(setup))
+            //.add_systems(Update, (spawn_chunks, despawn_chunks))
+            .add_systems(Startup, spawn_test_chunk.after(setup))
             .add_systems(Update, debug_view);
     }
 }
@@ -134,6 +133,9 @@ pub enum Biome {
 }
 
 #[derive(Resource)]
+struct ChunkMesh(Handle<Mesh>);
+
+#[derive(Resource)]
 struct Tilesets {
     terrain: Handle<Image>,
     features: Handle<Image>,
@@ -186,7 +188,7 @@ struct MapgridDebug {
 struct Chunks(HashMap<IVec2, Entity>);
 
 const TILE_SIZE: Vec2 = Vec2::new(40., 20.);
-const CHUNK_SIZE_TILES: UVec2 = UVec2::new(25, 25);
+const CHUNK_SIZE_TILES: UVec2 = UVec2::new(70, 70);
 const CHUNK_SIZE: Vec2 = Vec2::new(
     TILE_SIZE.x * CHUNK_SIZE_TILES.x as f32,
     TILE_SIZE.y * CHUNK_SIZE_TILES.y as f32,
@@ -195,7 +197,7 @@ const CHUNK_SIZE: Vec2 = Vec2::new(
 const AXONOMETRIC_PROJECTION: Mat2 = Mat2::from_cols(Vec2::new(0.5, -0.5), Vec2::new(0.5, 0.5));
 const INV_AXONOMETRIC_PROJECTION: Mat2 = Mat2::from_cols(Vec2::new(1.0, 1.0), Vec2::new(-1.0, 1.0));
 
-fn setup(mut cmd: Commands, assets: Res<AssetServer>) {
+fn setup(mut cmd: Commands, assets: Res<AssetServer>, mut meshes: ResMut<Assets<Mesh>>) {
     let terrain = assets.load("terrain.png");
     let features = assets.load("features.png");
     let debug = assets.load("iso.png");
@@ -221,9 +223,9 @@ fn setup(mut cmd: Commands, assets: Res<AssetServer>) {
         scatter_freq: 100.,
         island_threshhold: 0.9,
         sand_freq: 10000.,
-        stone_threshhold: 0.7,
+        stone_threshhold: 0.95,
         palm_threshhold: 0.7,
-        pebble_threshhold: 0.6,
+        pebble_threshhold: 0.90,
     });
 
     cmd.insert_resource(TerrainNoise {
@@ -231,6 +233,116 @@ fn setup(mut cmd: Commands, assets: Res<AssetServer>) {
         sand: Simplex::new(1337),
         scatter: Value::new(1337),
     });
+
+    // create chunk mesh
+    let mut vertecies = Vec::new();
+    let mut indicies = Vec::new();
+    let mut normals = Vec::new();
+    let size = CHUNK_SIZE_TILES.as_vec2() * TILE_SIZE;
+    for y in 0..(CHUNK_SIZE_TILES.y * 2) + 1 {
+        let y_pos = (-(size.y / 2.)) + (y as f32 * TILE_SIZE.y / 2.);
+        let points =
+            (CHUNK_SIZE_TILES.y - (-(CHUNK_SIZE_TILES.y as i32) + y as i32).abs() as u32) + 1;
+        debug!("y: {}, points: {}, ypos: {}", y, points, y_pos);
+        for x in 0..points {
+            let x_start = -(((points - 1) as f32 * TILE_SIZE.x) / 2.);
+            let x_pos = x_start + (TILE_SIZE.x * x as f32);
+            let vertex = vertecies.len() as u32;
+            vertecies.push([x_pos, y_pos, 0.]);
+            normals.push([0., 1., 0.]);
+
+            // first half
+            if y < CHUNK_SIZE_TILES.y {
+                indicies.push(vertex as u32);
+                indicies.push(vertex as u32 + points);
+                indicies.push(vertex as u32 + points + 1);
+                debug!(
+                    "\tx: {}, xpos: {}, vertex: {}, indicies: {}, {}, {}",
+                    x,
+                    x_pos,
+                    vertex,
+                    vertex,
+                    vertex + points,
+                    vertex + points + 1
+                );
+                // if this is not the last vertex of the row
+                // add the uneven rects
+                if x < points - 1 {
+                    indicies.push(vertex as u32);
+                    indicies.push(vertex as u32 + points + 1);
+                    indicies.push(vertex as u32 + 1);
+                }
+            }
+            // second half
+            else {
+                if x != points - 1 {
+                    indicies.push(vertex as u32);
+                    indicies.push(vertex as u32 + points);
+                    indicies.push(vertex as u32 + 1);
+                    debug!(
+                        "\tx: {}, xpos: {}, vertex: {}, indicies: {}, {}, {}",
+                        x,
+                        x_pos,
+                        vertex,
+                        vertex,
+                        vertex + points,
+                        vertex + 1
+                    );
+                    if x != 0 {
+                        indicies.push(vertex as u32);
+                        indicies.push(vertex as u32 + points - 1);
+                        indicies.push(vertex as u32 + points);
+                    }
+                }
+            }
+        }
+    }
+
+    // RENDER_WORLD only means we cant manipulate this mesh on the cpu side
+    // (asset is deleted)
+    let mesh = Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::RENDER_WORLD | RenderAssetUsages::MAIN_WORLD
+    )
+    .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, vertecies)
+    .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
+    .with_inserted_indices(Indices::U32(indicies));
+
+    cmd.insert_resource(ChunkMesh(meshes.add(mesh)));
+}
+
+fn spawn_test_chunk(
+    mut cmd: Commands,
+    mut chunks: ResMut<Chunks>,
+    mut mat: ResMut<Assets<Map>>,
+    ts: Res<Tilesets>,
+    cfg: Res<WorldgenConfig>,
+    noise: Res<TerrainNoise>,
+    feature_handles: Res<Features>,
+    features: Res<Assets<TileAssembly>>,
+    chunkmesh: Res<ChunkMesh>,
+    cam: Query<&Transform, With<Camera>>,
+) {
+    let transform = cam.single();
+    let chunkpos = world2grid_chunk(transform.translation.xy());
+    let vec = IVec2::new(0, 0);
+    if !chunks.0.contains_key(&vec) {
+        debug!("spawning chunk @ {}, curr: {}", vec, chunkpos);
+        chunks.0.insert(
+            vec,
+            spawn_chunk(
+                &mut cmd,
+                mat.as_mut(),
+                ts.as_ref(),
+                cfg.as_ref(),
+                noise.as_ref(),
+                feature_handles.as_ref(),
+                features.as_ref(),
+                chunkmesh.as_ref(),
+                vec,
+            ),
+        );
+    }
 }
 
 pub fn world2grid_tile(world: Vec2) -> IVec2 {
@@ -290,6 +402,7 @@ fn spawn_chunk(
     noise: &TerrainNoise,
     feature_handles: &Features,
     features: &Assets<TileAssembly>,
+    chunkmesh: &ChunkMesh,
     chunkpos: IVec2,
 ) -> Entity {
     let pos = grid2world_chunk(chunkpos);
@@ -322,9 +435,11 @@ fn spawn_chunk(
         })
         .id();
     */
-    cmd.spawn(MapBundleManaged::new(chunk_terrain, mat))
+
+    cmd.spawn(MapBundleUnmanaged::new(chunk_terrain, mat))
         .insert(Chunk)
         .insert(ChunkLayers(vec![feature_e]))
+        .insert(Mesh2dHandle(chunkmesh.0.clone()))
         .insert(Transform {
             translation: Vec3::new(pos.x, pos.y, -100.),
             ..default()
@@ -341,6 +456,7 @@ fn spawn_chunks(
     noise: Res<TerrainNoise>,
     feature_handles: Res<Features>,
     features: Res<Assets<TileAssembly>>,
+    chunkmesh: Res<ChunkMesh>,
     cam: Query<&Transform, With<Camera>>,
 ) {
     let transform = cam.single();
@@ -361,6 +477,7 @@ fn spawn_chunks(
                         noise.as_ref(),
                         feature_handles.as_ref(),
                         features.as_ref(),
+                        chunkmesh.as_ref(),
                         vec,
                     ),
                 );
@@ -466,7 +583,10 @@ impl TerrainNoise {
     ) -> Option<Handle<TileAssembly>> {
         // only generate on sand1 and sand2
         // not the border tiles
-        if ! matches!(self.tile_at_pos(pos, cfg), TerrainTile::Sand1 | TerrainTile::Sand2) {
+        if !matches!(
+            self.tile_at_pos(pos, cfg),
+            TerrainTile::Sand1 | TerrainTile::Sand2
+        ) {
             return None;
         }
 
@@ -510,7 +630,6 @@ impl TerrainNoise {
         // variant relative to first tile
         let vx = variations as f64 * r;
         let variant = (vx.trunc() as u32).min(variations - 1);
-        debug!("variant: {}", variant);
         let variant_edges = match variant {
             0 => TerrainTile::IslandBorder1Bottom,
             1 => TerrainTile::IslandBorder2Bottom,

@@ -3,6 +3,8 @@
 // workflow treats them as errors, so this allows them throughout the project.
 // Feel free to delete this line.
 #![allow(clippy::too_many_arguments, clippy::type_complexity)]
+mod bevy_fast_tilemap;
+
 mod worldgen;
 use worldgen::WorldGenPlugin;
 
@@ -21,7 +23,7 @@ use baddies::BaddiesPlugin;
 mod ui;
 use ui::UIPlugin;
 
-use bevy::prelude::*;
+use bevy::{prelude::*, render::camera::ScalingMode};
 
 fn main() {
     App::new()
