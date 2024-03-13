@@ -392,51 +392,6 @@ fn desaturate(color: vec4<f32>, amount: f32) -> vec4<f32> {
     return mix(color, gray, amnt);
 }
 
-fn mod289v3f(x: vec3f) -> vec3f { return x - floor(x / 289.0) * 289.0; }
-fn mod289v2f(x: vec2f) -> vec2f { return x - floor(x / 289.0) * 289.0; }
-fn mod7v3f(x: vec3f) -> vec3f { return x - floor(x / 6.999999) * 6.999999; }
-fn permute289v3f(x: vec3f) -> vec3f { return mod289v3f((34.0 * x + 10.0) * x); }
-
-fn cellular2D(P: vec2f) -> vec2f {
-    let K = 0.142857142857;
-    let Ko = 0.428571428571;
-    let jitter = 1.0;
-    let Pi = mod289v2f(floor(P));
-    let Pf = fract(P);
-    let Oi = vec3f(-1.0, 0.0, 1.0);
-    let Of = vec3f(-0.5, 0.5, 1.5);
-    let px = permute289v3f(Pi.x + Oi);
-    var p = permute289v3f(px.x + Pi.y + Oi);
-    var ox = vec3f(fract(p * K) - Ko);
-    var oy = mod7v3f(floor(p * K)) * K - Ko;
-    var dx = vec3f(Pf.x + 0.5 + jitter * ox);
-    var dy = vec3f(Pf.y - Of + jitter * oy);
-    var d1 = vec3f(dx * dx + dy * dy);
-    p = permute289v3f(px.y + Pi.y + Oi);
-    ox = fract(p * K) - Ko;
-    oy = mod7v3f(floor(p * K)) * K - Ko;
-    dx = Pf.x - 0.5 + jitter * ox;
-    dy = Pf.y - Of + jitter * oy;
-    var d2 = vec3f(dx * dx + dy * dy);
-    p = permute289v3f(px.z + Pi.y + Oi);
-    ox = fract(p * K) - Ko;
-    oy = mod7v3f(floor(p * K)) * K - Ko;
-    dx = Pf.x - 1.5 + jitter * ox;
-    dy = Pf.y - Of + jitter * oy;
-    let d3 = vec3f(dx * dx + dy * dy);
-    let d1a = min(d1, d2);
-    d2 = max(d1, d2);
-    d2 = min(d2, d3);
-    d1 = min(d1a, d2);
-    d2 = max(d1a, d2);
-    d1 = select(d1.yxz, d1, (d1.x < d1.y));
-    d1 = select(d1.zyx, d1, (d1.x < d1.z));
-    d1 = vec3f(d1.x, min(d1.yz, d2.yz));
-    d1 = vec3f(d1.x, min(d1.y, d1.z), d1.z);
-    d1 = vec3f(d1.x, min(d1.y, d2.x), d1.z);
-    return sqrt(d1.xy);
-}
-
 fn random2(p: vec2f) -> vec2f {
     return fract(sin(vec2f(dot(p, vec2f(127.1, 331.7)), dot(p, vec2f(269.5, 183.3)))) * 43758.5453);
 }
@@ -494,24 +449,6 @@ fn vertex(v: Vertex) -> VertexOutput {
     out.world_position = mesh2d_position_local_to_world(model, vec4<f32>(v.position, 1.0));
     out.mix_color = v.mix_color;
 
-    var world_position = out.world_position.xy;
-    var pos = world_to_tile_and_offset(world_position);
-    var index = get_tile_index(pos.tile);
-
-    //out.world_position = vec4f(voronoi(world_position), 0.);
-    //out.position = mesh2d_position_world_to_clip(out.world_position);
-
-    //out.world_position.y = sin(globals.time + f32(pos.tile.x) + f32(pos.tile.y));
-    //out.position = mesh2d_position_world_to_clip(out.world_position);
-    //if pos.tile.x % 2 == 0 {
-    //    //out.world_position.x *= sin(globals.time);
-    //    //out.world_position.y *= sin(globals.time);
-    //    out.world_position.y *= sin(globals.time);
-    //    out.position = mesh2d_position_world_to_clip(out.world_position);
-    //    out.mix_color = vec4<f32>(f32(pos.tile.x), f32(pos.tile.y), 0.0, 1.0);
-    //}
-    //out.mix_color = vec4<f32>(f32(pos.tile.x), f32(pos.tile.y), 0.0, 1.0);
-
     return out;
 }
 
@@ -524,18 +461,13 @@ fn fragment(
     var pos = world_to_tile_and_offset(world_position);
     var index = get_tile_index(pos.tile);
 
-    //if index == 0 && map.layer == 0 {
-    //    let c = voronoi(pos.offset / 10.);
-    //    pos.offset = (pos.offset + c.x) % map.tile_size.x;
-    //}
-
     var sample_color = sample_tile(map, index, pos.offset);
 
-    //#ifdef PERSPECTIVE_UNDERHANGS
-    //if sample_color.a < 1.0 {
-    //    color = render_perspective_underhangs(color, pos);
-    //}
-    //#endif // PERSPECTIVE_UNDERHANGS
+    #ifdef PERSPECTIVE_UNDERHANGS
+    if sample_color.a < 1.0 {
+        color = render_perspective_underhangs(color, pos);
+    }
+    #endif // PERSPECTIVE_UNDERHANGS
 
     if is_valid_tile(map, pos.tile) {
         color = blend(color, sample_color);
@@ -567,11 +499,6 @@ fn fragment(
             color = mix(vec4(color3, 1.), color, 0.99);
         }
     }
-
-    //color.r = 0.;
-    //color.g = 0.;
-    //color.b = 0.;
-    //color.a *= 1.;
 
     //#ifdef DOMINANCE_OVERHANGS
     //color = render_dominance_overhangs(color, index, pos);
