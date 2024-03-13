@@ -5,7 +5,12 @@ use crate::bevy_fast_tilemap::{
     FastTileMapPlugin, Map, MapBundleManaged, MapBundleUnmanaged, MapIndexer, AXONOMETRIC,
 };
 use bevy::{
-    asset::Asset, math::{ivec2, vec2}, prelude::*, reflect::TypePath, render::{mesh::Indices, render_asset::RenderAssetUsages, render_resource::PrimitiveTopology}, sprite::Mesh2dHandle
+    asset::Asset,
+    math::{ivec2, vec2},
+    prelude::*,
+    reflect::TypePath,
+    render::{mesh::Indices, render_asset::RenderAssetUsages, render_resource::PrimitiveTopology},
+    sprite::Mesh2dHandle,
 };
 use bevy_common_assets::ron::RonAssetPlugin;
 use bevy_inspector_egui::{prelude::*, quick::ResourceInspectorPlugin};
@@ -302,7 +307,7 @@ fn setup(mut cmd: Commands, assets: Res<AssetServer>, mut meshes: ResMut<Assets<
     // (asset is deleted)
     let mesh = Mesh::new(
         PrimitiveTopology::TriangleList,
-        RenderAssetUsages::RENDER_WORLD | RenderAssetUsages::MAIN_WORLD
+        RenderAssetUsages::RENDER_WORLD | RenderAssetUsages::MAIN_WORLD,
     )
     .with_inserted_attribute(Mesh::ATTRIBUTE_POSITION, vertecies)
     .with_inserted_attribute(Mesh::ATTRIBUTE_NORMAL, normals)
@@ -427,10 +432,12 @@ fn spawn_chunk(
     let pos = grid2world_chunk(chunkpos);
     let chunk_terrain = Map::builder(CHUNK_SIZE_TILES, ts.terrain.clone(), TILE_SIZE)
         .with_projection(AXONOMETRIC)
+        .with_layer(0)
         .build_and_initialize(|index| init_chunk_terrain(index, chunkpos, noise, cfg));
 
     let chunk_features = Map::builder(CHUNK_SIZE_TILES, ts.features.clone(), TILE_SIZE)
         .with_projection(AXONOMETRIC)
+        .with_layer(1)
         .build_and_initialize(|i| {
             init_chunk_features(i, chunkpos, noise, cfg, feature_handles, features)
         });
