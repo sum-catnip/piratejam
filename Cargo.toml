@@ -16,7 +16,7 @@ opt-level = 1
 opt-level = 3
 
 [dependencies]
-bevy = { version = "0.13", features = ["wayland"] }
+bevy = { version = "0.13", features = ["wayland", "file_watcher"] }
 bevy-inspector-egui = "0.23.3"
 bevy_common_assets = { version = "0.10.0", features = ["ron"] }
 bevy_fast_tilemap = "0.7.0"
