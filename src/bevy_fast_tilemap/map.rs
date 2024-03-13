@@ -9,7 +9,9 @@ use bevy::{
     sprite::{Material2d, Mesh2dHandle},
 };
 
-use crate::bevy_fast_tilemap::{map_builder::MapBuilder, map_uniform::MapUniform, shader::SHADER_HANDLE};
+use crate::bevy_fast_tilemap::{
+    map_builder::MapBuilder, map_uniform::MapUniform, shader::SHADER_HANDLE,
+};
 
 const ATTRIBUTE_MIX_COLOR: MeshVertexAttribute =
     MeshVertexAttribute::new("MixColor", 988779055, VertexFormat::Float32x4);
@@ -66,11 +68,11 @@ pub struct MapAttributes {
 
 impl Material2d for Map {
     fn vertex_shader() -> ShaderRef {
-        ShaderRef::Handle(SHADER_HANDLE)
+        "tilemap_shader.wgsl".into()
     }
 
     fn fragment_shader() -> ShaderRef {
-        ShaderRef::Handle(SHADER_HANDLE)
+        "tilemap_shader.wgsl".into()
     }
 
     fn specialize(
