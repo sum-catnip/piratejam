@@ -54,6 +54,8 @@ struct Map {
     /// [derived] Iverse of global transform of the entity holding the map as transformation matrix & offset.
     global_inverse_transform_matrix: mat3x3<f32>,
     global_inverse_transform_translation: vec3<f32>,
+
+    layer: u32
 };
 
 @group(2) @binding(0)
@@ -81,35 +83,6 @@ struct VertexOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) world_position: vec4<f32>,
     @location(1) mix_color: vec4<f32>,
-}
-
-/// Custom vertex shader for passing along the UV coordinate
-@vertex
-fn vertex(v: Vertex) -> VertexOutput {
-    var out: VertexOutput;
-
-    var model: mat4x4<f32> = get_model_matrix(v.instance_index);
-
-    out.position = mesh2d_position_local_to_clip(model, vec4<f32>(v.position, 1.0));
-    out.world_position = mesh2d_position_local_to_world(model, vec4<f32>(v.position, 1.0));
-    out.mix_color = v.mix_color;
-
-    var world_position = out.world_position.xy;
-    var pos = world_to_tile_and_offset(world_position);
-    var index = get_tile_index(pos.tile);
-
-    //out.world_position.y = sin(globals.time + f32(pos.tile.x) + f32(pos.tile.y));
-    //out.position = mesh2d_position_world_to_clip(out.world_position);
-    //if pos.tile.x % 2 == 0 {
-    //    //out.world_position.x *= sin(globals.time);
-    //    //out.world_position.y *= sin(globals.time);
-    //    out.world_position.y *= sin(globals.time);
-    //    out.position = mesh2d_position_world_to_clip(out.world_position);
-    //    out.mix_color = vec4<f32>(f32(pos.tile.x), f32(pos.tile.y), 0.0, 1.0);
-    //}
-    //out.mix_color = vec4<f32>(f32(pos.tile.x), f32(pos.tile.y), 0.0, 1.0);
-
-    return out;
 }
 
 /// Map position incl fractional part for this position.
@@ -419,9 +392,9 @@ fn desaturate(color: vec4<f32>, amount: f32) -> vec4<f32> {
     return mix(color, gray, amnt);
 }
 
-fn mod289v3f(x: vec3f)     -> vec3f { return x - floor(x / 289.0) * 289.0; }
-fn mod289v2f(x: vec2f)     -> vec2f { return x - floor(x / 289.0) * 289.0; }
-fn mod7v3f(x: vec3f)       -> vec3f { return x - floor(x / 6.999999) * 6.999999; }
+fn mod289v3f(x: vec3f) -> vec3f { return x - floor(x / 289.0) * 289.0; }
+fn mod289v2f(x: vec2f) -> vec2f { return x - floor(x / 289.0) * 289.0; }
+fn mod7v3f(x: vec3f) -> vec3f { return x - floor(x / 6.999999) * 6.999999; }
 fn permute289v3f(x: vec3f) -> vec3f { return mod289v3f((34.0 * x + 10.0) * x); }
 
 fn cellular2D(P: vec2f) -> vec2f {
@@ -433,23 +406,23 @@ fn cellular2D(P: vec2f) -> vec2f {
     let Oi = vec3f(-1.0, 0.0, 1.0);
     let Of = vec3f(-0.5, 0.5, 1.5);
     let px = permute289v3f(Pi.x + Oi);
-    var p  = permute289v3f(px.x + Pi.y + Oi);
-    var ox = vec3f(fract(p*K) - Ko);
-    var oy = mod7v3f(floor(p*K))*K - Ko;
-    var dx = vec3f(Pf.x + 0.5 + jitter*ox);
-    var dy = vec3f(Pf.y - Of + jitter*oy);
+    var p = permute289v3f(px.x + Pi.y + Oi);
+    var ox = vec3f(fract(p * K) - Ko);
+    var oy = mod7v3f(floor(p * K)) * K - Ko;
+    var dx = vec3f(Pf.x + 0.5 + jitter * ox);
+    var dy = vec3f(Pf.y - Of + jitter * oy);
     var d1 = vec3f(dx * dx + dy * dy);
     p = permute289v3f(px.y + Pi.y + Oi);
-    ox = fract(p*K) - Ko;
-    oy = mod7v3f(floor(p*K))*K - Ko;
-    dx = Pf.x - 0.5 + jitter*ox;
-    dy = Pf.y - Of + jitter*oy;
+    ox = fract(p * K) - Ko;
+    oy = mod7v3f(floor(p * K)) * K - Ko;
+    dx = Pf.x - 0.5 + jitter * ox;
+    dy = Pf.y - Of + jitter * oy;
     var d2 = vec3f(dx * dx + dy * dy);
     p = permute289v3f(px.z + Pi.y + Oi);
-    ox = fract(p*K) - Ko;
-    oy = mod7v3f(floor(p*K))*K - Ko;
-    dx = Pf.x - 1.5 + jitter*ox;
-    dy = Pf.y - Of + jitter*oy;
+    ox = fract(p * K) - Ko;
+    oy = mod7v3f(floor(p * K)) * K - Ko;
+    dx = Pf.x - 1.5 + jitter * ox;
+    dy = Pf.y - Of + jitter * oy;
     let d3 = vec3f(dx * dx + dy * dy);
     let d1a = min(d1, d2);
     d2 = max(d1, d2);
@@ -458,14 +431,14 @@ fn cellular2D(P: vec2f) -> vec2f {
     d2 = max(d1a, d2);
     d1 = select(d1.yxz, d1, (d1.x < d1.y));
     d1 = select(d1.zyx, d1, (d1.x < d1.z));
-    d1 = vec3f( d1.x, min(d1.yz, d2.yz) );
-    d1 = vec3f( d1.x, min(d1.y, d1.z), d1.z );
-    d1 = vec3f( d1.x, min(d1.y, d2.x), d1.z );
+    d1 = vec3f(d1.x, min(d1.yz, d2.yz));
+    d1 = vec3f(d1.x, min(d1.y, d1.z), d1.z);
+    d1 = vec3f(d1.x, min(d1.y, d2.x), d1.z);
     return sqrt(d1.xy);
 }
 
 fn random2(p: vec2f) -> vec2f {
-    return fract(sin(vec2f(dot(p, vec2f(127.1, 331.7)), dot(p, vec2f(269.5, 183.3))))*43758.5453);
+    return fract(sin(vec2f(dot(p, vec2f(127.1, 331.7)), dot(p, vec2f(269.5, 183.3)))) * 43758.5453);
 }
 
 fn voronoi(p: vec2f) -> vec3f {
@@ -484,7 +457,7 @@ fn voronoi(p: vec2f) -> vec3f {
 
             let r = g + o - f;
             let d = dot(r, r);
-            if (d < md) {
+            if d < md {
                 md = d;
                 mr = r;
                 mg = g;
@@ -501,13 +474,45 @@ fn voronoi(p: vec2f) -> vec3f {
             o = 0.5 + 0.5 * sin(globals.time + 6.2832 * o);
 
             let r = g + o - f;
-            if (dot(mr - r, mr - r) > 0.00001) {
+            if dot(mr - r, mr - r) > 0.00001 {
                 md = min(md, dot(0.5 * (mr + r), normalize(r - mr)));
             }
         }
     }
 
     return vec3f(md, mr);
+}
+
+/// Custom vertex shader for passing along the UV coordinate
+@vertex
+fn vertex(v: Vertex) -> VertexOutput {
+    var out: VertexOutput;
+
+    var model: mat4x4<f32> = get_model_matrix(v.instance_index);
+
+    out.position = mesh2d_position_local_to_clip(model, vec4<f32>(v.position, 1.0));
+    out.world_position = mesh2d_position_local_to_world(model, vec4<f32>(v.position, 1.0));
+    out.mix_color = v.mix_color;
+
+    var world_position = out.world_position.xy;
+    var pos = world_to_tile_and_offset(world_position);
+    var index = get_tile_index(pos.tile);
+
+    //out.world_position = vec4f(voronoi(world_position), 0.);
+    //out.position = mesh2d_position_world_to_clip(out.world_position);
+
+    //out.world_position.y = sin(globals.time + f32(pos.tile.x) + f32(pos.tile.y));
+    //out.position = mesh2d_position_world_to_clip(out.world_position);
+    //if pos.tile.x % 2 == 0 {
+    //    //out.world_position.x *= sin(globals.time);
+    //    //out.world_position.y *= sin(globals.time);
+    //    out.world_position.y *= sin(globals.time);
+    //    out.position = mesh2d_position_world_to_clip(out.world_position);
+    //    out.mix_color = vec4<f32>(f32(pos.tile.x), f32(pos.tile.y), 0.0, 1.0);
+    //}
+    //out.mix_color = vec4<f32>(f32(pos.tile.x), f32(pos.tile.y), 0.0, 1.0);
+
+    return out;
 }
 
 @fragment
@@ -518,6 +523,11 @@ fn fragment(
     var color = vec4<f32>(0.0, 0.0, 0.0, 0.0);
     var pos = world_to_tile_and_offset(world_position);
     var index = get_tile_index(pos.tile);
+
+    //if index == 0 && map.layer == 0 {
+    //    let c = voronoi(pos.offset / 10.);
+    //    pos.offset = (pos.offset + c.x) % map.tile_size.x;
+    //}
 
     var sample_color = sample_tile(map, index, pos.offset);
 
@@ -535,19 +545,29 @@ fn fragment(
         //var n = facets;
         //color = vec4f(n, n, n, 1.);
 
+        if index == 0 && map.layer == 0 {
+            let scaled = world_position / 100.;
+            let c = voronoi(scaled);
+            let basecol: vec4f = sample_tile(map, index, vec2f(0.));
+            var color3 = basecol.rgb;
+            // isolines
+            color3 = c.x * vec3f(1.);
+
+            // borders
+            color3 = mix(vec3f(0.4), color3, smoothstep(0.01, 0.05, c.x));
+            // points
+            let dd = length(c.yz);
+            //color3 += vec3f(1.) * (1. - smoothstep(0., 0.04, dd));
+
+            pos.offset = pos.offset + dd;
+            color = sample_tile(map, index, pos.offset);
+            if color.a == 0. {
+                color = basecol;
+            }
+            color = mix(vec4(color3, 1.), color, 0.99);
+        }
     }
 
-    let c = voronoi(world_position / 20.);
-    var color3 = vec3f(0.);
-    // isolines
-    color3 = (1. - c.x) * vec3f(1.);
-
-    // borders
-    color3 = mix(vec3f(1.), color3, smoothstep(0.01, 0.02, c.x));
-    // points
-    //let dd = length(c.yz);
-    //color3 += vec3f(1.) * (1. - smoothstep(0., 0.04, dd));
-    color *= vec4(color3, 1.);
     //color.r = 0.;
     //color.g = 0.;
     //color.b = 0.;
