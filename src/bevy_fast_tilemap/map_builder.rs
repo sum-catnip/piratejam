@@ -30,6 +30,11 @@ impl MapBuilder {
             },
         }
     } // fn new
+    
+    pub fn with_layer(mut self, layer: u32) -> Self {
+        self.map.map_uniform.layer = layer;
+        self
+    }
 
     /// Us the given map projection for rendering. Default is [`crate::tile_projection::IDENTITY`],
     /// which will render the tiles in rectangular layout.

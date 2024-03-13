@@ -68,6 +68,7 @@ pub struct MapUniform {
     /// (derived) global world pos -> fractional 2d map index
     pub(crate) global_inverse_transform_matrix: Mat3,
     pub(crate) global_inverse_transform_translation: Vec3,
+    pub(crate) layer: u32
 }
 
 impl Default for MapUniform {
@@ -90,6 +91,7 @@ impl Default for MapUniform {
             inverse_projection: default(),
             global_inverse_transform_matrix: default(),
             global_inverse_transform_translation: default(),
+            layer: default()
         }
     }
 }
